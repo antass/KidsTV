@@ -39,6 +39,25 @@
         "https://www.disneyplus.com/browse/entity-37b62808-2368-4688-9410-2dcf7461e258",
         "https://www.disneyplus.com/movies/finding-nemo/5Gpj2XqF7BV2"
       ]
+    },
+    {
+      "id": "encanto",
+      "title": "Encanto",
+      "service": "Disney+",
+      "image": "https://image.tmdb.org/t/p/w780/1OTnFugt1UoezcqL3VwM606ETbL.jpg",
+      "links": [
+        "https://www.disneyplus.com/browse/entity-328b0ec7-6e50-4ead-aa7f-c8bb92e6f08a"
+      ]
+    },
+    {
+      "id": "puffin-rock",
+      "title": "Puffin Rock",
+      "service": "Netflix",
+      "image": "https://image.tmdb.org/t/p/w780/9z945wZwFzJ0EbzY8vsk5ELCZeJ.jpg",
+      "links": [
+        "nflx://www.netflix.com/title/80044965",
+        "https://www.netflix.com/title/80044965"
+      ]
     }
   ]
 }
