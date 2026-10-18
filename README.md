@@ -1,107 +1,96 @@
 # KidsTV
 
-A tvOS app that shows a curated grid of shows/movies for kids. Each tile is a
-thumbnail that deep-links into the right streaming app (Netflix, Disney+, etc.)
-straight to a specific title. No browsing, no recommendations, no store.
+A tvOS app with one screen: a curated grid of shows for the kids. Each tile
+opens the right streaming app (Netflix, Disney+, …) straight to that title.
+No browsing, no recommendations, no autoplay rabbit holes.
 
-The catalog is just a JSON file — edit `KidsTV/Data/shows.json` to change what
-appears. No code changes required to curate.
+## Edit the catalog (no Xcode needed)
 
-## Status
+The grid comes from [`KidsTV/Data/shows.json`](KidsTV/Data/shows.json).
+The app downloads the live copy from GitHub every time it opens, so:
 
-Initial scaffold. Needs an Xcode project wrapper, app icon, and real thumbnails.
-The Swift sources, data model, and sample catalog are in place.
+1. Open the file on github.com (phone or Mac) → pencil icon → edit → **Commit**.
+2. On the Apple TV, close and reopen KidsTV. GitHub can take up to ~5 minutes
+   to serve the new version.
 
-## Prerequisites
+If the edit has a typo, the broken entry is skipped and everything else still
+shows. If GitHub is unreachable, the app shows the last catalog it downloaded
+(or, the first time, the copy built into the app).
 
-- macOS with Xcode 15+ installed
-- An Apple ID (free tier is fine for on-device testing on your own Apple TV)
-- The streaming apps you care about (Netflix, Disney+, etc.) already installed
-  and signed in on the target Apple TV
-
-## One-time setup: create the Xcode project
-
-The repo intentionally does not include an `.xcodeproj` — those are messy to
-hand-edit. Create it once in Xcode and drop these files in:
-
-1. Open Xcode → **File → New → Project…**
-2. Pick **tvOS → App**. Click Next.
-3. Fill in:
-   - Product Name: `KidsTV`
-   - Interface: **SwiftUI**
-   - Language: **Swift**
-   - Uncheck "Include Tests" unless you want them.
-4. Save the new project **inside** this `KidsTV/` directory (so the new
-   `KidsTV.xcodeproj` lives alongside the existing `KidsTV/` source folder).
-5. In Xcode's Project Navigator, delete the `ContentView.swift` and
-   `KidsTVApp.swift` that Xcode generated (move to trash — they conflict with
-   the ones in this repo).
-6. Right-click the `KidsTV` group → **Add Files to "KidsTV"…** → select the
-   `Models/`, `Views/`, and `Data/` folders from this repo. Make sure
-   **"Create folder references"** is selected (blue folder icon) for `Data/`
-   so `shows.json` is copied into the bundle as a resource.
-7. Also add `KidsTVApp.swift` at the root of the `KidsTV/` folder.
-8. Build target: tvOS 17.0 or later (for `NavigationStack`).
-
-## Running
-
-- **Simulator (fastest loop):** In Xcode, pick any **Apple TV** simulator from
-  the run destination dropdown, then ⌘R. Deep links won't actually open
-  Netflix/Disney+ in the simulator — you'll only see the dashboard.
-- **Real Apple TV:** See `docs/testing-on-apple-tv.md` (TODO). Short version:
-  enable Developer Mode on the Apple TV, pair it with Xcode over the same
-  Wi-Fi, pick it as the run destination, ⌘R.
-
-## Adding / removing shows
-
-Edit `KidsTV/Data/shows.json`. Each entry:
+### One show
 
 ```json
 {
-  "id": "unique-string",
-  "title": "Displayed under the tile",
-  "service": "Netflix | Disney+ | Apple TV+ | ...",
-  "thumbnail": "name-of-image-in-Assets.xcassets",
-  "deepLink": "https://... or nflx://... or disneyplus://..."
+  "id": "octonauts",
+  "title": "Octonauts",
+  "subtitle": "Season 1",
+  "service": "Netflix",
+  "image": "https://image.tmdb.org/t/p/w780/c1zzrs1FY4ERgLVRho1OyDmjGS5.jpg",
+  "links": [
+    "nflx://www.netflix.com/title/80020935",
+    "https://www.netflix.com/title/80020935"
+  ]
 }
 ```
 
-Thumbnails must be added to `Assets.xcassets` as image sets with the same name
-referenced in `thumbnail`. Rebuild to pick up changes.
+| Field      | Required | Notes |
+|------------|----------|-------|
+| `id`       | yes | Any unique text. |
+| `title`    | yes | Shown under the tile. |
+| `subtitle` | no  | Smaller second line. |
+| `service`  | yes | `Netflix`, `Disney+`, `Prime Video`, `Apple TV`, `Max`, `PBS Kids`, or anything else (sets the badge color). |
+| `image`    | no  | Any 16:9 image URL. Leave it out and a colored title card is drawn instead. |
+| `links`    | yes | Tried in order until one opens. After that, the app opens the service's home screen. If nothing opens, the kid sees "Ask a grown-up to check that Netflix is installed and signed in." |
 
-## Deep link notes — read before curating
+The page title ("Kids' Picks") is the top-level `"title"` in the file.
 
-- **Netflix:** `nflx://www.netflix.com/title/<id>` generally works on tvOS.
-  Get the id from the web URL (`netflix.com/title/80020935`).
-- **Disney+:** No official public URL scheme on tvOS. HTTPS links may open in
-  a browser rather than the app. Expect trial-and-error per title.
-- **Apple TV+ / Apple TV app:** Use `https://tv.apple.com/...` links — these
-  open the TV app natively on tvOS.
-- **YouTube:** Avoid. The YouTube app ignores deep links on tvOS in practice.
+### Finding links and art
 
-If a link fails to open, tvOS silently does nothing. Test each title on the
-real device before handing the remote to a kid.
+- **Netflix:** take the number from `netflix.com/title/<id>` and add both
+  `nflx://www.netflix.com/title/<id>` and `https://www.netflix.com/title/<id>`.
+- **Disney+:** open the title on disneyplus.com and copy the URL
+  (`…/browse/entity-<uuid>` or `…/movies/<name>/<id>`). Remove the region part
+  (`/en-gb`).
+- **Apple TV app:** use the `https://tv.apple.com/...` link.
+- **YouTube:** avoid. The tvOS app ignores deep links.
+- **Art:** search the title on themoviedb.org → *Media → Backdrops* → open an
+  image and swap `/original/` in its URL for `/w780/`.
 
-## Caveats / known limits
+Test each new title once on the real Apple TV.
 
-- tvOS does not guarantee that every custom URL scheme opens the target app.
-  Schemes are undocumented and can change between app versions.
-- If a streaming app is logged out or not installed, the deep link will fail.
-- This app does **not** authenticate with streaming services. It only launches
-  them. Logins happen inside each streaming app on the Apple TV.
+## Build and run
 
-## Project layout
+Requirements: Xcode 16+, tvOS 18+ on the Apple TV, with the streaming apps
+installed and signed in.
+
+- **Simulator:** open `KidsTV.xcodeproj`, pick an Apple TV simulator, ⌘R.
+  Streaming apps aren't installed in the simulator, so tapping a tile shows
+  the "Ask a grown-up" message. That's expected.
+- **Apple TV:** on the Apple TV go to Settings → Remote Apps and Devices →
+  Remote App and Devices; in Xcode go to Window → Devices and Simulators and
+  pair it. Pick it as the run destination, then ⌘R. A free Apple ID build
+  expires after 7 days; a paid developer account lasts a year.
+
+The project uses folder-synced groups, so new files in `KidsTV/` are picked
+up automatically.
+
+## Layout
 
 ```
 KidsTV/
-├── KidsTVApp.swift           # App entry
+├── KidsTVApp.swift              App entry, image cache
 ├── Models/
-│   ├── Show.swift            # Single show/movie
-│   └── Catalog.swift         # Loads shows.json from bundle
+│   ├── Show.swift               Catalog + show model (tolerant JSON decoding)
+│   └── StreamingService.swift   Badge colors, app-home fallback URLs
+├── Services/
+│   ├── CatalogStore.swift       Cache → bundle → live GitHub catalog
+│   └── LinkOpener.swift         Tries each link, reports failure
 ├── Views/
-│   ├── DashboardView.swift   # Grid of tiles
-│   └── ShowTile.swift        # One tile + deep-link action
-├── Data/
-│   └── shows.json            # Curated catalog (edit this)
-└── Assets.xcassets/          # Thumbnails + app icon (add in Xcode)
+│   ├── DashboardView.swift      The grid + "couldn't open" alert
+│   └── ShowTile.swift           Tile, artwork, title-card fallback
+├── Data/shows.json              The catalog (edit this)
+└── Assets.xcassets              App icon + top shelf
 ```
+
+The live catalog URL is `CatalogStore.remoteURL`. Change it if the repo moves
+or goes private (raw GitHub links only work for public repos).

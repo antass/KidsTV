@@ -1,30 +1,44 @@
-[
-  {
-    "id": "bluey-s01e01",
-    "title": "Bluey — S1 E1",
-    "service": "Disney+",
-    "thumbnail": "bluey",
-    "deepLink": "https://www.disneyplus.com/video/REPLACE-WITH-REAL-ID"
-  },
-  {
-    "id": "moana",
-    "title": "Moana",
-    "service": "Disney+",
-    "thumbnail": "moana",
-    "deepLink": "https://www.disneyplus.com/movies/moana/REPLACE-WITH-REAL-ID"
-  },
-  {
-    "id": "octonauts-s01e01",
-    "title": "Octonauts — S1 E1",
-    "service": "Netflix",
-    "thumbnail": "octonauts",
-    "deepLink": "nflx://www.netflix.com/title/80020935"
-  },
-  {
-    "id": "finding-nemo",
-    "title": "Finding Nemo",
-    "service": "Disney+",
-    "thumbnail": "nemo",
-    "deepLink": "https://www.disneyplus.com/movies/finding-nemo/REPLACE-WITH-REAL-ID"
-  }
-]
+{
+  "title": "Kids' Picks",
+  "shows": [
+    {
+      "id": "bluey",
+      "title": "Bluey",
+      "service": "Disney+",
+      "image": "https://image.tmdb.org/t/p/w780/1E04mNpfakXbl0FApuXu5CYRcjW.jpg",
+      "links": [
+        "https://www.disneyplus.com/series/bluey/1xy9TAOQ0M3r"
+      ]
+    },
+    {
+      "id": "moana",
+      "title": "Moana",
+      "service": "Disney+",
+      "image": "https://image.tmdb.org/t/p/w780/17B8NeuwlBrX25EnGIqtG5ql8aD.jpg",
+      "links": [
+        "https://www.disneyplus.com/browse/entity-e8896bfa-1052-41f7-ae2e-00255d77cf05",
+        "https://www.disneyplus.com/movies/moana/70GoJHflgHH9"
+      ]
+    },
+    {
+      "id": "octonauts",
+      "title": "Octonauts",
+      "service": "Netflix",
+      "image": "https://image.tmdb.org/t/p/w780/c1zzrs1FY4ERgLVRho1OyDmjGS5.jpg",
+      "links": [
+        "nflx://www.netflix.com/title/80020935",
+        "https://www.netflix.com/title/80020935"
+      ]
+    },
+    {
+      "id": "finding-nemo",
+      "title": "Finding Nemo",
+      "service": "Disney+",
+      "image": "https://image.tmdb.org/t/p/w780/eCynaAOgYYiw5yN5lBwz3IxqvaW.jpg",
+      "links": [
+        "https://www.disneyplus.com/browse/entity-37b62808-2368-4688-9410-2dcf7461e258",
+        "https://www.disneyplus.com/movies/finding-nemo/5Gpj2XqF7BV2"
+      ]
+    }
+  ]
+}
