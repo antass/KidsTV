@@ -94,3 +94,67 @@ KidsTV/
 
 The live catalog URL is `CatalogStore.remoteURL`. Change it if the repo moves
 or goes private (raw GitHub links only work for public repos).
+
+---
+
+# World Zoom (iPad)
+
+A second app in this repo, for Charlie: learning the difference between
+**continents, countries, states, and cities**. Everything is built on one
+picture — places fit inside places, like boxes inside boxes — and every kind
+of place always has the same color, icon, and word:
+
+| Kind | Color | Icon |
+|------|-------|------|
+| Continent | purple | 🗺 map |
+| Country | blue | 🚩 flag |
+| State | orange | 🧩 puzzle piece |
+| City | green | 🏙 buildings |
+
+## The four screens
+
+- **Zoom In** — pick a destination (Home/Boston, Orlando, Tokyo, …) and fly
+  down from Earth one level at a time on a real map. The nested boxes light up
+  the level you're on, and each step is read out loud ("Massachusetts is a
+  state. A state is a piece of a country, like a puzzle piece…"). Ends with the
+  whole address.
+- **What Is It?** — a place name appears; tap Continent / Country / State /
+  City. Every right answer shows the place inside its nest. Misses come back
+  a few cards later. 10 cards a round, with a hint button.
+- **Stack It** — the pieces of an address are jumbled; tap them biggest-first
+  and they drop into the boxes.
+- **Cheat Sheet** — the nest, what each word means, our own address, and the
+  tricky ones (Australia, New York, Antarctica, Canada's provinces).
+
+Read-aloud is on by default (toggle on the home screen); speaker buttons
+always talk. Stars from both games are saved on the iPad.
+
+## Add a place
+
+Add one line to `WorldZoom/Models/Atlas.swift`. `parent` must be the name of a
+bigger place already in the list; `zoom` is how high the map camera sits
+(roughly: city 30,000, state 500,000–1,500,000, country 1,500,000–6,000,000).
+Mark names that mean two things (`tricky: true`) so the quiz skips them. To
+make it a Zoom In destination, add its name to `Atlas.trips`.
+
+## Build and run
+
+Xcode 26+, iPadOS 18+. Open `WorldZoom.xcodeproj`, plug in the iPad (or pick
+an iPad simulator), ⌘R. Same signing team as KidsTV; a free Apple ID build
+expires after 7 days. The map needs internet; everything else works offline.
+
+```
+WorldZoom/
+├── WorldZoomApp.swift
+├── Models/
+│   ├── PlaceKind.swift      The 4 kinds (+ Earth): colors, icons, kid definitions
+│   └── Atlas.swift          Every place, and how they nest
+├── Services/Speaker.swift   Read-aloud
+└── Views/
+    ├── HomeView.swift
+    ├── ZoomView.swift       Map + nested boxes
+    ├── SortGameView.swift   "What Is It?"
+    ├── StackGameView.swift  "Stack It"
+    ├── CheatSheetView.swift
+    └── NestedBoxes.swift    The boxes-in-boxes view + shared buttons
+```
