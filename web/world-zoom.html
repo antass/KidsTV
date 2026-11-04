@@ -1,0 +1,1358 @@
+<title>World Zoom</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@600;800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+/* Layout: one bright kid's world. Every kind of place owns one color, one icon, one word; boxes nest inside boxes. Single light theme on purpose. */
+:root {
+  color-scheme: light;
+  --sky: #e9f3ff;
+  --ink: #1c2240;
+  --muted: #56608a;
+  --card: #ffffff;
+  --line: #d3dcf0;
+  --gold: #ffc83d;
+  --gold-soft: #fff1c4;
+  --bad: #e0475b;
+  --planet: #1aa3b8;
+  --continent: #8452d6;
+  --country: #2763d6;
+  --state: #e67e12;
+  --city: #24984f;
+  --gray: #7b829e;
+  --display: "Baloo 2", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Verdana", system-ui, sans-serif;
+  --r: 24px;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--sky);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 19px;
+  line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+button:focus-visible, [role="button"]:focus-visible { outline: 4px solid var(--gold); outline-offset: 3px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.1; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+
+.k-planet { --kc: var(--planet); }
+.k-continent { --kc: var(--continent); }
+.k-country { --kc: var(--country); }
+.k-state { --kc: var(--state); }
+.k-city { --kc: var(--city); }
+.k-gray { --kc: var(--gray); }
+.kc { color: var(--kc); }
+
+/* Header */
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding-block: 12px; background: var(--sky);
+  max-width: 1180px; margin: 0 auto;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--sky); }
+.back { font-family: var(--display); font-weight: 800; font-size: 1.15rem; padding: 8px 18px; border-radius: 999px; background: var(--card); box-shadow: 0 2px 0 var(--line); }
+.bar-title { font-family: var(--display); font-weight: 800; font-size: 1.5rem; flex: 1; min-width: 0; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-weight: 700; }
+.stars { background: var(--ink); color: var(--gold); font-family: var(--display); font-size: 1.3rem; }
+.stars.pop { animation: pop .5s ease; }
+.readtoggle { background: var(--card); box-shadow: 0 2px 0 var(--line); font-size: 1rem; }
+.readtoggle[aria-pressed="false"] { color: var(--muted); }
+@keyframes pop { 40% { transform: scale(1.35); } }
+
+main { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+
+/* Badges + boxes */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  background: var(--kc); color: #fff; font-family: var(--display); font-weight: 800;
+  letter-spacing: .04em; text-transform: uppercase; padding: 2px 14px 0; border-radius: 999px;
+}
+.box {
+  border: 3px solid var(--kc); border-radius: 20px; padding: 10px 12px;
+  background: color-mix(in srgb, var(--kc) 10%, white);
+  display: grid; gap: 8px; transition: opacity .3s, background .3s;
+}
+.box.hi { border-width: 6px; background: color-mix(in srgb, var(--kc) 26%, white); }
+.box.empty { border-style: dashed; background: color-mix(in srgb, var(--kc) 3%, white); }
+.box.empty .box-name { opacity: .6; }
+.box.faded { opacity: .38; }
+.box[role="button"] { cursor: pointer; }
+.box-row { display: flex; align-items: center; gap: 8px; color: var(--kc); min-width: 0; }
+.box-icon { font-size: 1.3rem; }
+.box-name { font-family: var(--display); font-weight: 800; font-size: 1.3rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.box.hi > .box-row .box-name { font-size: 1.55rem; }
+.box-tag { font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: color-mix(in srgb, var(--kc) 18%, white); padding: 2px 8px; border-radius: 999px; }
+
+.card { background: var(--card); border-radius: var(--r); padding: 20px; display: grid; gap: 12px; box-shadow: 0 3px 0 var(--line); min-width: 0; }
+.speak { width: 54px; height: 54px; flex: none; border-radius: 50%; background: var(--card); font-size: 1.6rem; box-shadow: 0 2px 6px rgba(28, 34, 64, .18); }
+.big {
+  font-family: var(--display); font-weight: 800; font-size: 1.4rem; color: #fff;
+  background: var(--kc); border-radius: 18px; padding: 14px 22px 10px; min-height: 64px;
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--kc) 70%, black); transition: transform .12s;
+}
+.big:active { transform: translateY(3px); box-shadow: 0 1px 0 color-mix(in srgb, var(--kc) 70%, black); }
+.big:disabled { opacity: .35; cursor: default; }
+.note { background: var(--gold-soft); padding: 10px 14px; border-radius: 14px; font-weight: 700; }
+.muted { color: var(--muted); }
+
+/* Home */
+.home { display: grid; gap: 26px; justify-items: center; text-align: center; padding-top: 10px; }
+.logo { font-size: clamp(3rem, 9vw, 5.5rem); font-weight: 800; letter-spacing: -.01em; }
+.logo span { display: inline-block; }
+.logo .o1 { color: var(--continent); } .logo .o2 { color: var(--country); } .logo .o3 { color: var(--state); } .logo .o4 { color: var(--city); }
+.ladder { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.chev { font-size: 1.8rem; font-weight: 800; color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; width: 100%; }
+.tile {
+  text-align: left; color: #fff; background: var(--kc); border-radius: 28px; padding: 22px;
+  display: grid; gap: 6px; align-content: start; min-height: 200px;
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--kc) 65%, black); transition: transform .12s;
+}
+.tile:active { transform: translateY(4px); }
+.ticon { font-size: 2.6rem; }
+.tname { font-family: var(--display); font-weight: 800; font-size: 2.1rem; line-height: 1.05; }
+.tblurb { font-size: 1.1rem; }
+
+/* Zoom */
+.chips { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+.chip { flex: none; background: var(--card); border-radius: 999px; padding: 8px 16px; font-weight: 700; box-shadow: 0 2px 0 var(--line); }
+.chip.on { background: var(--ink); color: #fff; }
+.zoomgrid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.stage {
+  position: relative; aspect-ratio: 4 / 3; max-width: 100%; border-radius: 30px; overflow: hidden;
+  background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--kc) 70%, white), var(--kc) 70%);
+}
+.stage-label { position: absolute; top: 16px; left: 18px; right: 18px; display: grid; gap: 4px; justify-items: start; color: #fff; }
+.stage-label .badge { background: rgba(255, 255, 255, .25); }
+.stage-name { font-family: var(--display); font-weight: 800; font-size: clamp(1.8rem, 4.5vw, 3rem); line-height: 1; text-shadow: 0 2px 0 rgba(0, 0, 0, .15); }
+.child {
+  position: absolute; inset: 36% 14% 10%; z-index: 2;
+  background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--kc) 70%, white), var(--kc) 70%);
+  border: 5px solid #fff; border-radius: 22px; color: #fff;
+  display: grid; place-content: center; justify-items: center; gap: 6px; padding: 10px; text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  transition: inset .65s cubic-bezier(.6, 0, .3, 1), border-radius .65s, border-width .65s;
+  animation: breathe 2.4s ease-in-out infinite;
+}
+.child .badge { background: rgba(255, 255, 255, .25); }
+.child-name { font-family: var(--display); font-weight: 800; font-size: clamp(1.4rem, 3.4vw, 2.3rem); line-height: 1.05; }
+.child-hint { font-weight: 700; opacity: .9; }
+.child.grow { inset: 0; border-radius: 30px; border-width: 0; animation: none; }
+.child.instant { transition: none; }
+@keyframes breathe { 50% { transform: scale(1.03); } }
+.pin { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; color: #fff; font-size: 5rem; }
+.pin .found { font-family: var(--display); font-weight: 800; font-size: clamp(1.6rem, 4vw, 2.4rem); }
+.pin .drop { animation: drop .7s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes drop { from { transform: translateY(-120px); } }
+.side { display: grid; gap: 16px; min-width: 0; }
+.ex-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.ex-head h2 { font-size: 2rem; }
+.inside { font-weight: 700; color: var(--kc); }
+.addr { background: color-mix(in srgb, var(--city) 14%, white); padding: 10px 14px; border-radius: 14px; }
+.controls { display: grid; grid-template-columns: auto 1fr; gap: 12px; }
+
+.stage.map { background: var(--sky); }
+.stage.map canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage.map .stage-label { z-index: 2; color: var(--ink); }
+.stage.map .stage-name { text-shadow: 0 0 6px #fff, 0 0 12px #fff; }
+.stage.map .stage-label .badge { background: var(--kc); }
+.maploading { position: absolute; inset: auto 0 45% 0; text-align: center; font-weight: 700; color: var(--muted); }
+.credit { position: absolute; right: 12px; bottom: 8px; font-size: .75rem; color: var(--muted); background: rgba(255, 255, 255, .7); padding: 0 6px; border-radius: 6px; }
+
+/* Quiz */
+.narrow { max-width: 900px; width: 100%; margin: 0 auto; display: grid; gap: 20px; }
+.dots { display: flex; gap: 8px; justify-content: center; }
+.dot { width: 18px; height: 18px; border-radius: 50%; background: var(--line); }
+.dot.on { background: var(--city); }
+.qcard { text-align: center; justify-items: center; position: relative; padding-top: 24px; }
+.qcard .speak { position: absolute; top: 16px; right: 16px; }
+.qlead { font-family: var(--display); font-weight: 600; font-size: 1.7rem; color: var(--muted); }
+.qname { font-size: clamp(2.6rem, 8vw, 4.4rem); font-weight: 800; overflow-wrap: anywhere; }
+.hintbtn { font-family: var(--display); font-weight: 800; font-size: 1.3rem; color: var(--country); padding: 6px 14px; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.choice {
+  position: relative; display: grid; justify-items: center; gap: 4px; padding: 22px 10px 16px; min-height: 140px; align-content: center;
+  background: var(--kc); color: #fff; border-radius: 24px; border: 6px solid transparent;
+  box-shadow: 0 5px 0 color-mix(in srgb, var(--kc) 65%, black); transition: opacity .25s, transform .12s;
+}
+.choice:active { transform: translateY(3px); }
+.choice .ci { font-size: 2.6rem; }
+.choice .cn { font-family: var(--display); font-weight: 800; font-size: clamp(1.6rem, 4.5vw, 2.4rem); }
+.choice.correct { border-color: var(--gold); }
+.choice.dim { opacity: .3; }
+.choice .mark { position: absolute; top: 8px; right: 12px; font-size: 2rem; }
+.choice:disabled { cursor: default; }
+.fb h2 { font-size: 2.2rem; }
+.next { justify-self: stretch; }
+
+/* Stack */
+.stackgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.stack-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.stack-head h2 { font-size: clamp(1.8rem, 4.5vw, 2.6rem); }
+.pile { display: grid; gap: 14px; }
+.pcard {
+  background: var(--card); border-radius: 22px; min-height: 86px; padding: 10px 16px;
+  font-family: var(--display); font-weight: 800; font-size: clamp(1.6rem, 4vw, 2.3rem);
+  border: 4px solid var(--line); box-shadow: 0 4px 0 var(--line); transition: transform .12s, opacity .3s;
+}
+.pcard:active { transform: translateY(3px); }
+.pcard.used { visibility: hidden; }
+.pcard.wrong { border-color: var(--bad); }
+.helper { text-align: center; font-weight: 700; }
+
+/* Cheat sheet */
+.cheat h2.sec { font-size: 2.2rem; }
+.kcard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: start; }
+.kicon { width: 72px; height: 72px; border-radius: 18px; background: var(--kc); display: grid; place-items: center; font-size: 2.2rem; }
+.kcard h3 { font-size: 1.9rem; color: var(--kc); }
+.addrlist { display: grid; gap: 10px; }
+.addrrow { display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 12px; font-family: var(--display); font-weight: 800; font-size: 1.5rem; }
+.addrrow .badge { justify-self: start; font-size: .95rem; }
+
+/* Celebration */
+.cheer { text-align: center; justify-items: center; background: var(--gold-soft); }
+.cheer .big-emoji { font-size: 4.5rem; line-height: 1; animation: pop .8s ease; }
+.cheer h2 { font-size: 2.6rem; }
+
+.shake { animation: shake .45s ease; }
+@keyframes shake { 20% { transform: translateX(14px); } 45% { transform: translateX(-14px); } 70% { transform: translateX(9px); } 90% { transform: translateX(-4px); } }
+
+
+/* Globe: explore + find */
+.k-find { --kc: #d9415a; }
+.globegrid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.stage.globe { aspect-ratio: 1 / 1; background: radial-gradient(circle at 50% 45%, #ffffff, var(--sky) 70%); max-height: 78vh; }
+.stage.globe canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.stage.globe canvas:active { cursor: grabbing; }
+.zoombtns { position: absolute; left: 14px; bottom: 14px; display: grid; gap: 8px; z-index: 2; }
+.zoombtns button { width: 54px; height: 54px; border-radius: 16px; background: var(--card); font-size: 1.6rem; font-weight: 800; box-shadow: 0 3px 0 var(--line); }
+.lod { position: absolute; top: 14px; left: 14px; right: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; z-index: 2; }
+.lod .chev { font-size: 1.1rem; }
+.lodpill { font-family: var(--display); font-weight: 800; padding: 2px 12px 0; border-radius: 999px; background: rgba(255, 255, 255, .8); color: var(--muted); }
+.lodpill.on { background: var(--ink); color: #fff; }
+.swatch { display: inline-block; width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(28, 34, 64, .35); flex: none; }
+.swatch.sm { width: 16px; height: 16px; border-radius: 5px; vertical-align: -2px; }
+.ex-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ex-title h2 { font-size: 2.2rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.bigflag { font-size: 2.4rem; line-height: 1; }
+.info .badge { justify-self: start; }
+.wiki { font-size: 1.05rem; }
+.wikisrc { font-size: .85rem; color: var(--muted); }
+.wikisrc a { color: var(--country); }
+.chiprow { display: flex; flex-wrap: wrap; gap: 8px; }
+.chiprow .chip { display: inline-flex; align-items: center; gap: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; background: var(--card); padding: 6px 12px; border-radius: 999px; font-weight: 700; font-size: .95rem; box-shadow: 0 2px 0 var(--line); }
+.findtop { display: flex; justify-content: space-between; align-items: center; }
+.points { font-family: var(--display); font-weight: 800; font-size: 1.5rem; background: var(--ink); color: var(--gold); padding: 2px 14px 0; border-radius: 999px; }
+.findname { font-size: clamp(2rem, 5vw, 3rem); overflow-wrap: anywhere; display: flex; align-items: center; gap: 10px; }
+.note.good { background: color-mix(in srgb, var(--city) 18%, white); }
+@media (max-width: 820px) { .globegrid { grid-template-columns: minmax(0, 1fr); } .stage.globe { max-height: none; } }
+
+@media (max-width: 820px) {
+  .zoomgrid, .stackgrid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  body { font-size: 17px; }
+  .readtoggle .rt { display: none; }
+  .bar-title { font-size: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .choices { gap: 10px; }
+  .choice { min-height: 112px; }
+  .kcard { grid-template-columns: auto minmax(0, 1fr); }
+  .kcard .speak { grid-column: 2; justify-self: start; }
+  .addrrow { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .controls { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<header class="bar">
+  <button class="back" id="back" hidden>‹ Home</button>
+  <div class="bar-title" id="barTitle"></div>
+  <button class="pill readtoggle" id="readToggle" aria-pressed="true">🔊 Read aloud: On</button>
+  <span class="pill stars" id="stars" aria-label="Stars">⭐ 0</span>
+</header>
+<main id="view"></main>
+
+<script>
+// ---------- Kinds: one color, icon and word each ----------
+const ORDER = ["planet", "continent", "country", "state", "city"];
+const QUIZ_KINDS = ORDER.slice(1);
+const K = {
+  planet: { name: "Planet", plural: "Planets", icon: "🌍", meaning: "Our whole world. Every place is inside Earth.", ex: "Earth" },
+  continent: { name: "Continent", plural: "Continents", icon: "🗺️", meaning: "A giant piece of land. There are only 7 continents. Countries are inside continents.", ex: "North America, Europe, Asia, Africa" },
+  country: { name: "Country", plural: "Countries", icon: "🚩", meaning: "A place with its own flag and its own leaders. Countries are inside continents.", ex: "United States, Poland, Japan, Mexico" },
+  state: { name: "State", plural: "States", icon: "🧩", meaning: "A piece of a country, like a puzzle piece. States are inside countries.", ex: "Massachusetts, Florida, Texas, California" },
+  city: { name: "City", plural: "Cities", icon: "🏙️", meaning: "A place where lots of people live close together, with streets and buildings. Cities are inside states or countries.", ex: "Boston, Paris, Tokyo, Orlando" },
+};
+const rank = k => ORDER.indexOf(k);
+
+// ---------- Places (parent = name of the next-bigger place) ----------
+const pl = (name, kind, parent, lat, lon, zoom, extra = {}) => ({ name, kind, parent, lat, lon, zoom, ...extra, id: kind + ":" + name });
+const PROVINCE = { word: "Province", meaning: "A piece of a country, like a puzzle piece. Canada calls its pieces provinces instead of states.", tricky: true };
+const PLACES = [
+  pl("Earth", "planet", null, 20, -40, 25e6, { emoji: "🌍" }),
+
+  pl("North America", "continent", "Earth", 45, -100, 9e6),
+  pl("South America", "continent", "Earth", -15, -60, 9e6),
+  pl("Europe", "continent", "Earth", 52, 15, 6.5e6),
+  pl("Africa", "continent", "Earth", 3, 20, 10e6),
+  pl("Asia", "continent", "Earth", 40, 90, 12e6),
+  pl("Australia", "continent", "Earth", -25, 140, 7e6, { note: "Australia is a continent AND a country! It's the only place that's both.", tricky: true }),
+  pl("Antarctica", "continent", "Earth", -80, 0, 8e6, { emoji: "🐧", note: "Antarctica has no countries and no cities. Just ice and penguins!" }),
+
+  pl("United States", "country", "North America", 39.8, -98.6, 6e6, { emoji: "🇺🇸", map: "United States of America", note: "The United States is cut into 50 states, like a 50-piece puzzle." }),
+  pl("Canada", "country", "North America", 58, -100, 6.5e6, { emoji: "🇨🇦", note: "Canada's pieces are called provinces instead of states." }),
+  pl("Mexico", "country", "North America", 23.6, -102.5, 3.5e6, { emoji: "🇲🇽" }),
+  pl("Brazil", "country", "South America", -10, -53, 5.5e6, { emoji: "🇧🇷" }),
+  pl("Poland", "country", "Europe", 52, 19, 1.3e6, { emoji: "🇵🇱" }),
+  pl("France", "country", "Europe", 46.6, 2.4, 1.5e6, { emoji: "🇫🇷" }),
+  pl("Italy", "country", "Europe", 42.5, 12.5, 1.6e6, { emoji: "🇮🇹" }),
+  pl("United Kingdom", "country", "Europe", 54, -2.5, 1.5e6, { emoji: "🇬🇧" }),
+  pl("Germany", "country", "Europe", 51, 10, 1.3e6, { emoji: "🇩🇪" }),
+  pl("Egypt", "country", "Africa", 26.8, 30.8, 2e6, { emoji: "🇪🇬" }),
+  pl("Kenya", "country", "Africa", 0.2, 37.9, 1.5e6, { emoji: "🇰🇪" }),
+  pl("Japan", "country", "Asia", 36.2, 138.2, 2.5e6, { emoji: "🇯🇵" }),
+  pl("China", "country", "Asia", 35, 104, 6e6, { emoji: "🇨🇳" }),
+  pl("India", "country", "Asia", 21, 78, 4e6, { emoji: "🇮🇳" }),
+  pl("Australia", "country", "Australia", -25, 134, 5.5e6, { emoji: "🇦🇺", note: "Australia is a country AND a continent! It's the only place that's both.", tricky: true }),
+
+  pl("Massachusetts", "state", "United States", 42.25, -71.8, 350000, { note: "This is our state!" }),
+  pl("Florida", "state", "United States", 28, -82.5, 1.1e6),
+  pl("California", "state", "United States", 37, -119.5, 1.5e6),
+  pl("Texas", "state", "United States", 31, -99.5, 1.6e6),
+  pl("New York", "state", "United States", 42.9, -75.5, 800000, { note: "Tricky! New York is a state. The big city inside it is called New York City.", tricky: true }),
+  pl("Illinois", "state", "United States", 40, -89.2, 700000),
+  pl("Maine", "state", "United States", 45.3, -69.2, 500000),
+  pl("Hawaii", "state", "United States", 20.5, -157, 700000, { note: "Hawaii is a state made of islands, far out in the ocean." }),
+  pl("Alaska", "state", "United States", 64, -150, 2.5e6, { note: "Alaska is the biggest state of all 50." }),
+  pl("New South Wales", "state", "Australia", -32.5, 147, 1.4e6, { note: "Australia has states too, just like the United States." }),
+  pl("Ontario", "state", "Canada", 49, -85, 1.6e6, PROVINCE),
+
+  pl("Boston", "city", "Massachusetts", 42.36, -71.06, 30000, { emoji: "🏠", note: "We live here, in East Boston!" }),
+  pl("Orlando", "city", "Florida", 28.54, -81.38, 40000),
+  pl("Miami", "city", "Florida", 25.76, -80.19, 40000),
+  pl("Los Angeles", "city", "California", 34.05, -118.24, 60000),
+  pl("Houston", "city", "Texas", 29.76, -95.37, 60000),
+  pl("New York City", "city", "New York", 40.71, -74.0, 40000, { note: "New York City is a city inside the state of New York. Same name, different sizes!" }),
+  pl("Chicago", "city", "Illinois", 41.88, -87.63, 40000),
+  pl("Honolulu", "city", "Hawaii", 21.31, -157.86, 30000),
+  pl("Sydney", "city", "New South Wales", -33.87, 151.21, 50000),
+  pl("Toronto", "city", "Ontario", 43.65, -79.38, 30000),
+  pl("Mexico City", "city", "Mexico", 19.43, -99.13, 50000),
+  pl("Rio de Janeiro", "city", "Brazil", -22.9, -43.2, 40000),
+  pl("Warsaw", "city", "Poland", 52.23, 21.01, 30000),
+  pl("Paris", "city", "France", 48.86, 2.35, 25000),
+  pl("Rome", "city", "Italy", 41.9, 12.5, 25000),
+  pl("London", "city", "United Kingdom", 51.5, -0.13, 40000),
+  pl("Berlin", "city", "Germany", 52.52, 13.4, 30000),
+  pl("Cairo", "city", "Egypt", 30.04, 31.24, 40000),
+  pl("Nairobi", "city", "Kenya", -1.29, 36.82, 30000),
+  pl("Tokyo", "city", "Japan", 35.68, 139.69, 60000),
+  pl("Beijing", "city", "China", 39.9, 116.4, 60000),
+  pl("Mumbai", "city", "India", 19.08, 72.88, 40000),
+];
+// "Province" for Ontario, the kind's own word everywhere else.
+const word = p => p.word || K[p.kind].name;
+const meaningOf = p => p.meaning || K[p.kind].meaning;
+const find = (name, kind) => PLACES.find(p => p.name === name && p.kind === kind);
+const byId = id => PLACES.find(p => p.id === id);
+const parentOf = p => p.parent ? PLACES.find(q => q.name === p.parent && rank(q.kind) < rank(p.kind)) : null;
+function chain(p) { const r = [p]; let c = p, u; while ((u = parentOf(c))) { r.unshift(u); c = u; } return r; }
+const the = p => p.name.startsWith("United") ? "the " + p.name : p.name;
+const title = p => (p.emoji ? p.emoji + " " : "") + p.name;
+const flagFor = p => p.emoji || (chain(p).find(x => x.kind === "country") || {}).emoji || "📍";
+const address = p => chain(p).reverse().map(x => x.name).join(", ");
+function sentence(p) {
+  const parts = [`${p.name} is a ${word(p).toLowerCase()}.`, meaningOf(p)];
+  const u = parentOf(p);
+  if (u) parts.push(`${p.name} is inside ${the(u)}.`);
+  if (p.note) parts.push(p.note);
+  return parts.join(" ");
+}
+const HOME = find("Boston", "city");
+const TRIPS = ["Boston", "Orlando", "New York City", "Honolulu", "Toronto", "Mexico City", "Rio de Janeiro", "London", "Paris", "Warsaw", "Cairo", "Tokyo", "Sydney"]
+  .map(n => find(n, "city")).concat([find("Antarctica", "continent")]);
+const QUIZ = PLACES.filter(p => p.kind !== "planet" && !p.tricky);
+const CITIES = PLACES.filter(p => p.kind === "city");
+
+// ---------- Helpers ----------
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const shuffle = a => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function load(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+let stars = load("wz-stars", 0);
+let readAloud = load("wz-read", true);
+
+// ---------- Read aloud ----------
+const synth = window.speechSynthesis;
+function say(text, force = false) {
+  if (!synth || !(force || readAloud)) return;
+  try {
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 0.9;
+    const v = synth.getVoices().find(v => v.lang === "en-US");
+    if (v) u.voice = v;
+    synth.speak(u);
+  } catch (e) {}
+}
+const speakBtn = text => `<button class="speak" data-act="say" data-arg="${esc(text)}" aria-label="Read out loud">🔊</button>`;
+const badge = k => `<span class="badge k-${k}">${K[k].icon} ${K[k].name}</span>`;
+
+// Boxes inside boxes. slots: [{kind, name|null}]
+function nest(slots, hi = -1, fade = false, act = null, i = 0) {
+  if (i >= slots.length) return "";
+  const s = slots[i];
+  const cls = ["box", "k-" + s.kind, i === hi ? "hi" : "", s.name ? "" : "empty", fade && hi >= 0 && i > hi ? "faded" : ""].join(" ");
+  const tap = act ? ` data-act="${act}" data-arg="${i}" role="button" tabindex="0"` : "";
+  return `<div class="${cls}"${tap}><div class="box-row"><span class="box-icon">${K[s.kind].icon}</span><span class="box-name">${esc(s.name || (s.word || K[s.kind].name) + "?")}</span><span class="box-tag">${s.word || K[s.kind].name}</span></div>${nest(slots, hi, fade, act, i + 1)}</div>`;
+}
+const slotsFor = p => chain(p).map(x => ({ kind: x.kind, name: title(x), word: x.word }));
+const placeBadge = p => `<span class="badge k-${p.kind}">${K[p.kind].icon} ${word(p)}</span>`;
+
+// ---------- State ----------
+const S = { view: "home", trip: HOME, level: chain(HOME).length - 1, quiz: null, stack: null,
+  globe: null, exploreCam: { lon: -40, lat: 20, km: 9000 }, exploreSel: null, findCam: { lon: -40, lat: 20, km: 9000 }, find: null };
+
+const ACTIVITIES = [
+  { id: "zoom", kind: "planet", icon: "🔍", title: "Zoom Out", blurb: "Start in a city and zoom out, all the way to the whole Earth.", intro: "Pick a city, then tap Zoom out!" },
+  { id: "explore", kind: "country", icon: "🌐", title: "Spin the Globe", blurb: "Turn and zoom the globe. Tap anything to learn about it.", intro: "Drag to spin the globe. Tap anything to learn about it!" },
+  { id: "find", kind: "find", icon: "🎯", title: "Find It!", blurb: "Find countries, continents and cities on the globe. Win points!" },
+  { id: "quiz", kind: "continent", icon: "❓", title: "What Is It?", blurb: "Is it a city, a state, a country, or a continent?" },
+  { id: "stack", kind: "state", icon: "🧱", title: "Stack It", blurb: "Put the places in order, biggest to smallest.", intro: "Tap the biggest place first." },
+  { id: "cheat", kind: "city", icon: "📖", title: "Cheat Sheet", blurb: "All four kinds of places on one page.", intro: "" },
+];
+
+// ---------- Views ----------
+function homeView() {
+  return `<section class="home">
+    <h1 class="logo"><span class="o1">World</span> <span class="o2">Z</span><span class="o3">o</span><span class="o4">om</span></h1>
+    <div class="ladder">${QUIZ_KINDS.map((k, i) => `${i ? '<span class="chev" aria-hidden="true">›</span>' : ""}<span class="badge k-${k}" style="font-size:${(1.5 - i * 0.12).toFixed(2)}rem">${K[k].icon} ${K[k].name}</span>`).join("")}</div>
+    <p class="muted" style="font-weight:700;font-size:1.2rem">Biggest ➜ smallest</p>
+    <div class="tiles">${ACTIVITIES.map(a => `<button class="tile k-${a.kind}" data-act="go" data-arg="${a.id}"><span class="ticon">${a.icon}</span><span class="tname">${a.title}</span><span class="tblurb">${a.blurb}</span></button>`).join("")}</div>
+  </section>`;
+}
+
+function zoomView() {
+  const ch = chain(S.trip), cur = ch[S.level], up = parentOf(cur), top = S.level === 0, bottom = S.level === ch.length - 1;
+  return `
+  <div class="chips" role="list">${TRIPS.map(p => `<button class="chip ${p === S.trip ? "on" : ""}" data-act="trip" data-arg="${esc(p.id)}">${flagFor(p)} ${esc(p.name)}</button>`).join("")}</div>
+  <div class="zoomgrid">
+    <div class="stage map k-${cur.kind}" id="stage">
+      <canvas id="map" aria-label="Map showing ${esc(cur.name)}"></canvas>
+      <div class="stage-label">${placeBadge(cur)}<span class="stage-name">${esc(title(cur))}</span></div>
+      <p class="maploading" id="maploading" ${WORLD ? "hidden" : ""}>Loading the map…</p>
+      <p class="credit">Map: Natural Earth</p>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="ex-head"><h2>${esc(cur.name)} <span class="muted">is a</span> <span class="kc k-${cur.kind}">${word(cur).toLowerCase()}</span></h2>${speakBtn(levelSpeech())}</div>
+        <p>${esc(meaningOf(cur))}</p>
+        ${up ? `<p class="inside k-${up.kind}">↳ ${esc(cur.name)} is inside ${esc(the(up))}.</p>` : ""}
+        ${cur.note ? `<p class="note">💡 ${esc(cur.note)}</p>` : ""}
+        ${top ? `<p class="addr">📬 The whole address: <b>${esc(address(S.trip))}</b></p>` : ""}
+      </div>
+      ${nest(slotsFor(S.trip), S.level, false, "jump")}
+      <div class="controls">
+        <button class="big k-gray" data-act="zin" ${bottom ? "disabled" : ""}>➕ Zoom in</button>
+        <button class="big k-${top ? S.trip.kind : up.kind}" data-act="zout">${top ? `↺ Back to ${esc(S.trip.name)}` : `➖ Zoom out to ${esc(up.name)}`}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function newQuiz() {
+  S.quiz = { queue: shuffle(QUIZ).slice(0, 10), picked: null, missed: false, ever: new Set(), hint: false, first: 0, done: 0 };
+}
+function hintFor(p) {
+  const u = parentOf(p);
+  return u && u.kind !== "planet"
+    ? `Hint: ${p.name} is inside ${the(u)}, which is a ${K[u.kind].name.toLowerCase()}.`
+    : `Hint: ${p.name} is so big, only Earth holds it!`;
+}
+function sizeHint(picked, actual) {
+  return rank(picked) < rank(actual)
+    ? `${K[picked].plural} are bigger than that. ${K[actual].plural} fit inside ${K[picked].plural.toLowerCase()}.`
+    : `${K[picked].plural} are smaller than that. ${K[picked].plural} fit inside ${K[actual].plural.toLowerCase()}.`;
+}
+function quizView() {
+  const q = S.quiz, p = q.queue[0];
+  if (!p) {
+    return `<div class="narrow"><div class="card cheer"><div class="big-emoji">🎉</div><h2>Round done!</h2><p style="font-size:1.3rem">You got ${q.first} of 10 on the first try.</p></div>
+      <button class="big k-continent" data-act="again">↺ Play again</button></div>`;
+  }
+  const right = q.picked === p.kind;
+  const dots = Array.from({ length: 10 }, (_, i) => `<span class="dot ${i < q.done ? "on" : ""}"></span>`).join("");
+  const hint = q.picked ? "" : q.hint
+    ? `<p class="note">${esc(hintFor(p))}</p>`
+    : `<button class="hintbtn" data-act="hint">💡 Hint</button>`;
+  const choices = QUIZ_KINDS.map(k => {
+    const isAns = right && k === p.kind, isWrong = q.picked === k && k !== p.kind;
+    const cls = ["choice", "k-" + k, isAns ? "correct" : "", right && !isAns ? "dim" : ""].join(" ");
+    const mark = isAns ? '<span class="mark">✅</span>' : isWrong ? '<span class="mark">❌</span>' : "";
+    return `<button class="${cls}" data-act="pick" data-arg="${k}" ${right ? "disabled" : ""}>${mark}<span class="ci">${K[k].icon}</span><span class="cn">${K[k].name}</span></button>`;
+  }).join("");
+  let fb = "";
+  if (q.picked && right) {
+    fb = `<div class="card fb" id="fb">
+      <div class="ex-head"><h2>${q.missed ? "👍 You got it!" : "⭐ Yes!"}</h2>${speakBtn(sentence(p))}</div>
+      <p>${esc(sentence(p))}</p>
+      ${nest(slotsFor(p), chain(p).length - 1)}
+      <button class="big k-country next" data-act="next">Next ➜</button></div>`;
+  } else if (q.picked) {
+    fb = `<div class="card fb" id="fb"><h2>Not quite. Try again!</h2><p>${esc(p.name)} is not a ${K[q.picked].name.toLowerCase()}. ${esc(sizeHint(q.picked, p.kind))} Look again!</p></div>`;
+  }
+  return `<div class="narrow">
+    <div class="dots" aria-label="${q.done} of 10 done">${dots}</div>
+    <div class="card qcard">${speakBtn(`What is ${the(p)}? Is it a continent, a country, a state, or a city?`)}
+      <span class="qlead">What is</span><h2 class="qname" id="qname">${esc(the(p))}?</h2>${hint}</div>
+    <div class="choices">${choices}</div>
+    ${fb}
+  </div>`;
+}
+
+function newStack(keep) {
+  const prev = S.stack && S.stack.target;
+  const target = keep && prev ? prev : shuffle(CITIES.filter(c => c !== prev))[0];
+  const steps = chain(target).slice(1);
+  S.stack = { target, steps, placed: 0, cards: shuffle(steps), wrong: null };
+}
+function stackView() {
+  const st = S.stack, done = st.placed === st.steps.length;
+  const slots = [{ kind: "planet", name: "🌍 Earth" }].concat(st.steps.map((p, i) => ({ kind: p.kind, word: p.word, name: i < st.placed ? title(p) : null })));
+  const right = done
+    ? `<div class="card cheer"><div class="big-emoji">🎉</div><h2>You stacked it!</h2><p style="font-size:1.25rem;font-weight:700">${esc(address(st.target))}</p>${speakBtn("The whole address is: " + address(st.target))}</div>
+       <button class="big k-state" data-act="newstack">🔀 New puzzle</button>`
+    : `<div class="pile">${st.cards.map((p, i) => {
+        const used = st.steps.indexOf(p) < st.placed;
+        return `<button class="pcard ${used ? "used" : ""} ${st.wrong === p.id ? "wrong" : ""}" id="card-${i}" data-act="place" data-arg="${esc(p.id)}" ${used ? 'disabled aria-hidden="true"' : ""}>${esc(title(p))}</button>`;
+      }).join("")}</div>
+      ${st.wrong ? `<p class="helper">Hmm, is that the biggest one left? Look at the next empty box.</p>` : ""}`;
+  return `<div class="stack-head"><h2>Tap the <span class="kc k-continent">biggest</span> place first!</h2>${speakBtn("Tap the biggest place first. Then the next biggest, all the way down to the smallest.")}</div>
+    <div class="stackgrid"><div>${nest(slots, done ? -1 : st.placed + 1)}</div><div style="display:grid;gap:16px">${right}</div></div>`;
+}
+
+function cheatView() {
+  const generic = ORDER.map(k => ({ kind: k, name: k === "planet" ? "🌍 Earth" : K[k].name }));
+  const tricky = [
+    ["🇦🇺 Australia", "is a continent AND a country. It's the only one that's both."],
+    ["🗽 New York", "is a state. New York City is a city inside it. Same name, different sizes!"],
+    ["🐧 Antarctica", "is a continent with no countries and no cities. Just ice and penguins."],
+    ["🇨🇦 Canada", "doesn't have states. Its pieces are called provinces. Lots of countries don't have states."],
+  ];
+  return `<div class="narrow cheat">
+    <h2 class="sec">Places fit inside places</h2>
+    ${nest(generic)}
+    <h2 class="sec">What the words mean</h2>
+    ${QUIZ_KINDS.map(k => `<div class="card kcard k-${k}"><div class="kicon">${K[k].icon}</div><div style="display:grid;gap:6px;min-width:0"><h3>${K[k].name}</h3><p>${K[k].meaning}</p><p class="muted"><b>Like:</b> ${K[k].ex}</p></div>${speakBtn(`${K[k].name}. ${K[k].meaning} Like ${K[k].ex}.`)}</div>`).join("")}
+    <h2 class="sec">Our address</h2>
+    <div class="card"><div class="addrlist">${chain(HOME).reverse().map(p => `<div class="addrrow">${placeBadge(p)}<span>${esc(title(p))}</span></div>`).join("")}</div>
+      <p class="muted">Smallest on top, biggest at the bottom, just like on an envelope.</p></div>
+    <h2 class="sec">Tricky ones</h2>
+    ${tricky.map(([n, t]) => `<p class="note"><b>${n}</b> <span style="font-weight:400">${t}</span></p>`).join("")}
+  </div>`;
+}
+
+const VIEWS = { home: homeView, zoom: zoomView, explore: exploreView, find: findView, quiz: quizView, stack: stackView, cheat: cheatView };
+
+// ---------- Globe: Montessori continents → country outlines → capitals ----------
+const MONTE = {
+  "Africa": "#3fa94b", "Asia": "#f4c92b", "Europe": "#e0393a", "North America": "#f2892a",
+  "South America": "#ef6fa6", "Australia": "#9a6a42", "Antarctica": "#ffffff", "Oceania": "#b98d66",
+};
+const SEVEN = ["Africa", "Antarctica", "Asia", "Australia", "Europe", "North America", "South America"];
+const tint = (hex, amt) => {
+  const n = parseInt(hex.slice(1), 16), m = c => Math.round(c + (255 - c) * amt);
+  return `rgb(${m(n >> 16)},${m((n >> 8) & 255)},${m(n & 255)})`;
+};
+const flagOf = iso => iso && /^[A-Z]{2}$/.test(iso) && iso !== "XK" ? String.fromCodePoint(...[...iso].map(c => 0x1F1E6 + c.charCodeAt(0) - 65)) : "";
+const pretty = n => ({ "United States of America": "United States" }[n] || n);
+const theName = n => /^(United|Netherlands|Philippines|Bahamas|Gambia|Czech|Dominican|Central African|Solomon|Marshall|Maldives)/.test(pretty(n)) ? "the " + pretty(n) : pretty(n);
+const LOD_NAMES = { continents: "Continents", countries: "Countries", capitals: "Capitals" };
+
+let WIKI = null;
+fetch("wiki.json").then(r => (r.ok ? r.json() : null)).then(d => {
+  WIKI = d && d.items;
+  if (S.view === "explore") updatePanel();
+}).catch(() => {});
+
+let DOTS = [], FIND_POOL = null;
+function afterWorld() {
+  const byCountry = new Map(WORLD.countries.map(c => [c.name, c]));
+  WORLD.byCountry = byCountry;
+  const capNames = new Set(WORLD.capitals.map(c => c.name));
+  DOTS = WORLD.capitals.map(c => ({ ...c, capital: true }));
+  for (const p of PLACES) {
+    if (p.kind !== "city" || capNames.has(p.name)) continue;
+    const country = chain(p).find(x => x.kind === "country");
+    DOTS.push({ name: p.name, country: country ? (country.map || country.name) : "", lon: p.lon, lat: p.lat, capital: false });
+  }
+  const easy = ["United States of America", "Canada", "Mexico", "Brazil", "Argentina", "Peru", "Chile", "Colombia",
+    "United Kingdom", "France", "Germany", "Italy", "Spain", "Portugal", "Poland", "Norway", "Sweden", "Greece",
+    "Ireland", "Iceland", "Ukraine", "Russia", "Turkey", "Egypt", "Morocco", "Nigeria", "Kenya", "South Africa",
+    "Madagascar", "Saudi Arabia", "India", "China", "Japan", "South Korea", "Thailand", "Indonesia", "Australia", "New Zealand"]
+    .filter(n => byCountry.has(n));
+  const preferred = { "South Africa": "Pretoria", "Netherlands": "Amsterdam", "Bolivia": "La Paz" };
+  const cityPool = [];
+  for (const n of easy) {
+    const caps = DOTS.filter(d => d.capital && d.country === n);
+    const cap = caps.find(d => d.name === preferred[n]) || caps[0];
+    if (cap) cityPool.push(cap);
+  }
+  for (const d of DOTS) if (!d.capital) cityPool.push(d);
+  FIND_POOL = { countries: easy, cities: cityPool };
+  document.querySelectorAll(".maploading").forEach(el => { el.hidden = true; });
+  if (S.view === "find" && !S.find) newFind();
+  if (S.view === "find" || S.view === "explore") updatePanel();
+  if (S.globe) S.globe.request();
+}
+
+function regionAt(list, ll) {
+  let best = null;
+  for (const r of list) {
+    if (d3.geoDistance(r.center, ll) > r.radius * Math.PI / 180 + 0.02) continue;
+    if (d3.geoContains(r.feature, ll) && (!best || r.radius < best.radius)) best = r;
+  }
+  return best;
+}
+
+class Globe {
+  constructor(canvas, o) {
+    this.canvas = canvas; this.o = o; this.cam = o.cam;
+    this.pointers = new Map(); this.dirty = false; this.flyTok = null;
+    canvas.addEventListener("pointerdown", e => this.down(e));
+    canvas.addEventListener("pointermove", e => this.move(e));
+    canvas.addEventListener("pointerup", e => this.up(e));
+    canvas.addEventListener("pointercancel", e => this.pointers.delete(e.pointerId));
+    canvas.addEventListener("wheel", e => { e.preventDefault(); this.zoom(Math.exp(e.deltaY * 0.0015)); }, { passive: false });
+    this.ro = new ResizeObserver(() => this.request());
+    this.ro.observe(canvas.parentElement);
+    this.request();
+  }
+  destroy() { this.ro.disconnect(); this.flyTok = null; }
+  size() { const b = this.canvas.parentElement.getBoundingClientRect(); return [Math.max(1, b.width), Math.max(1, b.height)]; }
+  proj() { const [w, h] = this.size(); return projectionFor(this.cam, w, h); }
+  layer() { return this.o.layer ? this.o.layer(this.cam) : this.cam.km > 3200 ? "continents" : this.cam.km > 900 ? "countries" : "capitals"; }
+  zoom(f) {
+    this.flyTok = null;
+    this.cam.km = Math.max(60, Math.min(9000, this.cam.km * f));
+    this.request();
+    if (this.o.onMove) this.o.onMove();
+  }
+  request() {
+    if (this.dirty) return;
+    this.dirty = true;
+    requestAnimationFrame(() => { this.dirty = false; this.draw(); });
+  }
+  down(e) {
+    this.canvas.setPointerCapture(e.pointerId);
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() });
+    this.flyTok = null;
+  }
+  move(e) {
+    const p = this.pointers.get(e.pointerId);
+    if (!p) return;
+    if (this.pointers.size === 1) {
+      const k = 180 / Math.PI / this.proj().scale();
+      this.cam.lon -= (e.clientX - p.x) * k;
+      this.cam.lat = Math.max(-85, Math.min(85, this.cam.lat + (e.clientY - p.y) * k));
+      this.request();
+    } else if (this.pointers.size === 2) {
+      const [a, b] = [...this.pointers.values()];
+      const d0 = Math.hypot(a.x - b.x, a.y - b.y);
+      p.x = e.clientX; p.y = e.clientY;
+      const d1 = Math.hypot(a.x - b.x, a.y - b.y);
+      if (d0 > 0 && d1 > 0) this.zoom(d0 / d1);
+      return;
+    }
+    p.x = e.clientX; p.y = e.clientY;
+  }
+  up(e) {
+    const p = this.pointers.get(e.pointerId);
+    this.pointers.delete(e.pointerId);
+    if (!p || this.pointers.size) return;
+    if (Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 8 && performance.now() - p.t < 700) {
+      const r = this.canvas.getBoundingClientRect();
+      if (this.o.onTap) this.o.onTap(this.hitTest(e.clientX - r.left, e.clientY - r.top));
+    }
+  }
+  flyTo(lon, lat, km, dur = 1300) {
+    const from = { ...this.cam }, to = { lon, lat, km: km || from.km };
+    const g = d3.geoInterpolate([from.lon, from.lat], [to.lon, to.lat]);
+    const t0 = performance.now(), tok = (this.flyTok = {});
+    const step = now => {
+      if (this.flyTok !== tok) return;
+      const t = reduced ? 1 : Math.min(1, (now - t0) / dur), e = d3.easeCubicInOut(t);
+      const [lo, la] = g(e);
+      this.cam.lon = lo; this.cam.lat = la;
+      this.cam.km = Math.exp(Math.log(from.km) + (Math.log(to.km) - Math.log(from.km)) * e);
+      this.draw();
+      if (t < 1) requestAnimationFrame(step); else if (this.o.onMove) this.o.onMove();
+    };
+    requestAnimationFrame(step);
+  }
+  dots() { return this.o.dots ? this.o.dots(this.layer()) : []; }
+  hitTest(x, y) {
+    const out = { layer: this.layer() };
+    if (!WORLD) return out;
+    const proj = this.proj(), here = [this.cam.lon, this.cam.lat];
+    let best = null, bd = 26;
+    for (const d of this.dots()) {
+      if (d3.geoDistance([d.lon, d.lat], here) > Math.PI / 2) continue;
+      const p = proj([d.lon, d.lat]), dd = Math.hypot(p[0] - x, p[1] - y);
+      if (dd < bd) { bd = dd; best = d; }
+    }
+    out.city = best;
+    const ll = proj.invert([x, y]);
+    if (!ll || !isFinite(ll[0]) || d3.geoDistance(ll, here) > Math.PI / 2) { out.space = true; return out; }
+    out.country = regionAt(WORLD.countries, ll);
+    out.state = out.country ? regionAt(WORLD.states, ll) : null;
+    out.continent = out.country ? out.country.continent : null;
+    out.ocean = !out.country;
+    return out;
+  }
+  draw() {
+    if (!WORLD || !this.canvas.isConnected) return;
+    const [w, h] = this.size(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const c = this.canvas;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    const ctx = c.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const proj = this.proj(), path = d3.geoPath(proj, ctx), here = [this.cam.lon, this.cam.lat];
+    const corner = Math.hypot(w, h) / 2, s = proj.scale();
+    const view = corner >= s ? Math.PI / 2 : Math.asin(corner / s);
+    const vis = r => d3.geoDistance(r.center, here) - r.radius * Math.PI / 180 < view + 0.05;
+    const L = this.layer(), marks = this.o.marks ? this.o.marks() : [];
+
+    ctx.beginPath(); path({ type: "Sphere" }); ctx.fillStyle = MAP.ocean; ctx.fill();
+
+    if (L === "continents") {
+      for (const r of WORLD.continents) {
+        if (!vis(r)) continue;
+        ctx.beginPath(); path(r.feature);
+        ctx.fillStyle = MONTE[r.name] || "#ccc"; ctx.fill("evenodd");
+        ctx.strokeStyle = r.name === "Antarctica" ? "#8d99ad" : "rgba(30, 30, 50, .45)"; ctx.lineWidth = 1; ctx.stroke();
+      }
+    } else {
+      for (const r of WORLD.countries) {
+        if (!vis(r)) continue;
+        ctx.beginPath(); path(r.feature);
+        ctx.fillStyle = tint(MONTE[r.continent] || "#cccccc", r.continent === "Antarctica" ? 0 : 0.42); ctx.fill("evenodd");
+        ctx.strokeStyle = "rgba(30, 30, 50, .55)"; ctx.lineWidth = 0.9; ctx.stroke();
+      }
+      if (L === "capitals") {
+        ctx.setLineDash([3, 3]);
+        for (const r of WORLD.states) {
+          if (!vis(r)) continue;
+          ctx.beginPath(); path(r.feature); ctx.strokeStyle = "rgba(30, 30, 50, .35)"; ctx.lineWidth = 0.7; ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Selected, hinted, or wrong places.
+    for (const m of marks) {
+      // Outline only (plus an optional see-through wash) so the continent color stays true.
+      const draw = f => {
+        ctx.beginPath(); path(f);
+        if (m.fill) { ctx.fillStyle = m.fill; ctx.fill("evenodd"); }
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "#1c2240"; ctx.lineWidth = (m.width || 3.5) + 3; ctx.stroke();
+        ctx.strokeStyle = m.color; ctx.lineWidth = m.width || 3.5; ctx.stroke();
+      };
+      if (m.type === "continent") {
+        const cont = WORLD.continents.find(r => r.name === m.name);
+        if (cont) draw(cont.feature);
+      } else if (m.type === "country") {
+        const r = WORLD.byCountry && WORLD.byCountry.get(m.name);
+        if (r) draw(r.feature);
+      } else if (m.type === "state") {
+        const r = WORLD.states.find(x => x.name === m.name);
+        if (r) draw(r.feature);
+      }
+    }
+    ctx.beginPath(); path({ type: "Sphere" }); ctx.strokeStyle = MAP.rim; ctx.lineWidth = 2; ctx.stroke();
+
+    // Labels: continent names when zoomed out (explore only), then city dots.
+    const placed = [];
+    const label = (text, x, y, font, color) => {
+      ctx.font = font;
+      const tw = ctx.measureText(text).width, box = [x - 2, y - 11, x + tw + 2, y + 11];
+      if (placed.some(b => !(box[2] < b[0] || box[0] > b[2] || box[3] < b[1] || box[1] > b[3]))) return;
+      placed.push(box);
+      ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+      ctx.lineWidth = 4; ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.strokeText(text, x, y);
+      ctx.fillStyle = color; ctx.fillText(text, x, y);
+    };
+    if (L === "continents" && this.o.labels) {
+      for (const p of PLACES) {
+        if (p.kind !== "continent" || d3.geoDistance([p.lon, p.lat], here) > 1.35) continue;
+        const [x, y] = proj([p.lon, p.lat]);
+        ctx.font = "800 20px 'Baloo 2', sans-serif";
+        label(p.name, x - ctx.measureText(p.name).width / 2, y, "800 20px 'Baloo 2', sans-serif", "#1c2240");
+      }
+    }
+    const sel = marks.find(m => m.type === "city");
+    for (const d of this.dots()) {
+      if (d3.geoDistance([d.lon, d.lat], here) > Math.PI / 2 - 0.02) continue;
+      const [x, y] = proj([d.lon, d.lat]);
+      if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
+      const isSel = sel && sel.name === d.name;
+      ctx.beginPath(); ctx.arc(x, y, isSel ? 9 : d.capital ? 5.5 : 5, 0, 2 * Math.PI);
+      ctx.fillStyle = isSel ? sel.color : d.capital ? "#1c2240" : "#24984f"; ctx.fill();
+      ctx.lineWidth = 2.5; ctx.strokeStyle = "#fff"; ctx.stroke();
+      if (d.capital && !isSel) { ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 2 * Math.PI); ctx.fillStyle = "#fff"; ctx.fill(); }
+      if (this.o.labels) label(d.name, x + 9, y, (d.capital ? "700 " : "400 ") + "14px 'Atkinson Hyperlegible', sans-serif", "#1c2240");
+    }
+  }
+}
+
+function mountGlobe() {
+  if (S.globe) { S.globe.destroy(); S.globe = null; }
+  const canvas = document.getElementById("globe");
+  if (!canvas) return;
+  const explore = S.view === "explore";
+  S.globe = new Globe(canvas, explore ? {
+    cam: S.exploreCam, labels: true,
+    dots: L => (L === "capitals" ? DOTS : []),
+    marks: () => exploreMarks(),
+    onTap: exploreTap,
+    onMove: updateLod,
+  } : {
+    cam: S.findCam, labels: false,
+    layer: () => { const q = S.find && S.find.qs[S.find.i]; return !q || q.type === "continent" ? "continents" : "countries"; },
+    dots: () => { const q = S.find && S.find.qs[S.find.i]; return q && q.type === "city" && FIND_POOL ? FIND_POOL.cities : []; },
+    marks: () => findMarks(),
+    onTap: findTap,
+  });
+  updateLod();
+}
+function updatePanel() {
+  const el = document.getElementById("panel");
+  if (!el) return;
+  el.innerHTML = S.view === "explore" ? explorePanel() : findPanel();
+  if (S.globe) S.globe.request();
+  updateLod();
+}
+function updateLod() {
+  const el = document.getElementById("lod");
+  if (!el || !S.globe) return;
+  const L = S.globe.layer();
+  el.innerHTML = Object.keys(LOD_NAMES).map(k => `<span class="lodpill ${k === L ? "on" : ""}">${LOD_NAMES[k]}</span>`).join('<span class="chev" aria-hidden="true">›</span>');
+}
+function globeStage(extra = "") {
+  return `<div class="stage globe" id="gstage">
+    <canvas id="globe" aria-label="Globe you can turn and tap"></canvas>
+    <p class="maploading" ${WORLD ? "hidden" : ""}>Loading the globe…</p>
+    <div class="zoombtns">
+      <button data-act="gz" data-arg="in" aria-label="Zoom in">＋</button>
+      <button data-act="gz" data-arg="out" aria-label="Zoom out">－</button>
+      <button data-act="gz" data-arg="reset" aria-label="Whole Earth">🌍</button>
+    </div>
+    ${extra}
+    <p class="credit">Map: Natural Earth</p>
+  </div>`;
+}
+function camForRegion(r) { return [r.center[0], r.center[1], Math.max(500, Math.min(7000, r.radius * 111 * 1.25))]; }
+
+// ---------- Spin the Globe (explore) ----------
+function exploreView() {
+  return `<div class="globegrid">${globeStage(`<div class="lod" id="lod"></div>`)}<div class="side" id="panel">${explorePanel()}</div></div>`;
+}
+function exploreMarks() {
+  const s = S.exploreSel;
+  if (!s) return [];
+  if (s.type === "city") return [{ type: "city", name: s.name, color: "#ffc83d" }];
+  return [{ type: s.type, name: s.name, color: "#ffc83d", width: 4, fill: s.type === "continent" ? null : "rgba(255, 255, 255, .35)" }];
+}
+function wikiBlock(key) {
+  const w = WIKI && WIKI[key];
+  if (!w) return "";
+  return `<p class="wiki">${esc(w.text)}</p><p class="wikisrc">From <a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.source)}</a> · CC BY-SA</p>`;
+}
+const chipBtn = (type, name, label, cls) => `<button class="chip ${cls || ""}" data-act="exsel" data-arg="${esc(type + "|" + name)}">${label}</button>`;
+function exploreInfo(s) {
+  // Returns { html, speech } for the selected place.
+  if (s.type === "continent") {
+    const color = MONTE[s.name] || "#ccc";
+    const seven = SEVEN.includes(s.name);
+    const sp = seven ? `${s.name} is a continent. It is one of the 7 continents on Earth.` : `Oceania is the name for the many islands in the Pacific Ocean near Australia.`;
+    return { speech: sp + " " + ((WIKI && WIKI["continent:" + s.name] || {}).text || ""), html: `
+      <div class="ex-title"><span class="swatch" style="background:${color}"></span><h2>${esc(s.name)}</h2></div>
+      <span class="badge k-continent">${K.continent.icon} ${seven ? "Continent" : "Island region"}</span>
+      <p>${esc(sp)}</p>${wikiBlock("continent:" + s.name)}
+      <div class="chiprow">${chipBtn("zoomcont", s.name, "🔍 Show its countries")}</div>` };
+  }
+  if (s.type === "country") {
+    const c = WORLD.byCountry.get(s.name);
+    const caps = WORLD.capitals.filter(x => x.country === s.name);
+    const cont = c ? c.continent : "";
+    let sp = `${pretty(s.name)} is a country${SEVEN.includes(cont) ? " in " + cont : ""}.`;
+    if (caps.length) sp += ` Its capital city is ${caps[0].name}.`;
+    return { speech: sp + " " + ((WIKI && WIKI["country:" + s.name] || {}).text || ""), html: `
+      <div class="ex-title"><span class="bigflag">${flagOf(c && c.iso) || "🚩"}</span><h2>${esc(pretty(s.name))}</h2></div>
+      <span class="badge k-country">${K.country.icon} Country</span>
+      <p>${esc(sp)}</p>${wikiBlock("country:" + s.name)}
+      <div class="chiprow">${cont ? chipBtn("continent", cont, `<span class="swatch sm" style="background:${MONTE[cont]}"></span> ${esc(cont)}`) : ""}${caps.map(x => chipBtn("city", x.name, "★ " + esc(x.name))).join("")}</div>` };
+  }
+  if (s.type === "state") {
+    const st = WORLD.states.find(x => x.name === s.name);
+    const word = st ? st.word : "State", country = st ? st.country : "";
+    const sp = `${s.name} is a ${word.toLowerCase()}. It is a piece of ${theName(country)}.`;
+    return { speech: sp + " " + ((WIKI && WIKI["state:" + s.name] || {}).text || ""), html: `
+      <div class="ex-title"><h2>${esc(s.name)}</h2></div>
+      <span class="badge k-state">${K.state.icon} ${word}</span>
+      <p>${esc(sp)}</p>${wikiBlock("state:" + s.name)}
+      <div class="chiprow">${country ? chipBtn("country", country, `${flagOf((WORLD.byCountry.get(country) || {}).iso)} ${esc(pretty(country))}`) : ""}</div>` };
+  }
+  const d = DOTS.find(x => x.name === s.name) || { name: s.name, country: "" };
+  const c = WORLD.byCountry.get(d.country);
+  const sp = d.capital ? `${d.name} is a city. It is the capital city of ${theName(d.country)}.` : `${d.name} is a city in ${theName(d.country)}.`;
+  return { speech: sp + " " + ((WIKI && WIKI["city:" + d.name] || {}).text || ""), html: `
+    <div class="ex-title"><span class="bigflag">${d.capital ? "★" : "🏙️"}</span><h2>${esc(d.name)}</h2></div>
+    <span class="badge k-city">${K.city.icon} ${d.capital ? "Capital city" : "City"}</span>
+    <p>${esc(sp)}</p>${wikiBlock("city:" + d.name)}
+    <div class="chiprow">${d.country ? chipBtn("country", d.country, `${flagOf(c && c.iso)} ${esc(pretty(d.country))}`) : ""}${c ? chipBtn("continent", c.continent, `<span class="swatch sm" style="background:${MONTE[c.continent]}"></span> ${esc(c.continent)}`) : ""}</div>` };
+}
+function explorePanel() {
+  const s = S.exploreSel;
+  const legend = `<div class="legend">${SEVEN.map(n => `<button class="legend-item" data-act="exsel" data-arg="continent|${n}"><span class="swatch sm" style="background:${MONTE[n]}"></span>${n}</button>`).join("")}</div>`;
+  if (!s || !WORLD) {
+    return `<div class="card"><div class="ex-head"><h2>Spin the globe!</h2>${speakBtn("Drag to spin the globe. Pinch or use the buttons to zoom. Zoom in to see countries, then capital cities. Tap anything to learn about it.")}</div>
+      <p><b>Drag</b> to turn it. <b>Pinch</b> or use ＋ and － to zoom.</p>
+      <p>Zoomed out you see the <b>7 continents</b>. Zoom in for <b>country outlines</b>, then more for <b>capital cities</b> ★.</p>
+      <p>Tap anything to learn about it!</p></div>${legend}`;
+  }
+  const info = exploreInfo(s);
+  return `<div class="card info">${info.html.replace("</h2>", `</h2>${speakBtn(info.speech)}`)}</div>${legend}`;
+}
+function selectPlace(sel, fly) {
+  S.exploreSel = sel;
+  updatePanel();
+  say(exploreInfo(sel).speech);
+  if (!fly || !S.globe) return;
+  if (sel.type === "continent") {
+    const p = PLACES.find(x => x.kind === "continent" && x.name === sel.name);
+    if (p) S.globe.flyTo(p.lon, p.lat, Math.max(S.globe.cam.km, 3300));
+  } else if (sel.type === "country") {
+    const r = WORLD.byCountry.get(sel.name);
+    if (r) { const [lo, la, km] = camForRegion(r); S.globe.flyTo(lo, la, Math.min(Math.max(km, 950), 3100)); }
+  } else if (sel.type === "city") {
+    const d = DOTS.find(x => x.name === sel.name);
+    if (d) S.globe.flyTo(d.lon, d.lat, Math.min(S.globe.cam.km, 850));
+  }
+}
+function exploreTap(hit) {
+  if (hit.city) return selectPlace({ type: "city", name: hit.city.name });
+  if (hit.space || hit.ocean) { S.exploreSel = null; updatePanel(); if (hit.ocean) say("That's the ocean."); return; }
+  if (hit.layer === "continents") return selectPlace({ type: "continent", name: hit.continent });
+  if (hit.layer === "capitals" && hit.state) return selectPlace({ type: "state", name: hit.state.name });
+  selectPlace({ type: "country", name: hit.country.name });
+}
+
+// ---------- Find It! (points game) ----------
+function findView() {
+  return `<div class="globegrid">${globeStage()}<div class="side" id="panel">${findPanel()}</div></div>`;
+}
+function newFind() {
+  if (!FIND_POOL) { S.find = null; return; }
+  const cont = shuffle(SEVEN).slice(0, 2).map(n => ({ type: "continent", name: n }));
+  const countries = shuffle(FIND_POOL.countries).slice(0, 5).map(n => ({ type: "country", name: n }));
+  const cities = shuffle(FIND_POOL.cities).slice(0, 3).map(d => ({ type: "city", name: d.name, dot: d }));
+  S.find = { qs: shuffle(cont.concat(countries, cities)), i: 0, tries: 0, points: 0, solved: false, msg: "", wrong: null, hint: false, over: false };
+}
+function findTarget(q) {
+  if (q.type === "continent") { const p = PLACES.find(x => x.kind === "continent" && x.name === q.name); return p ? [p.lon, p.lat, 4200] : null; }
+  if (q.type === "country") { const r = WORLD.byCountry.get(q.name); return r ? camForRegion(r) : null; }
+  return [q.dot.lon, q.dot.lat, 2200];
+}
+function findMarks() {
+  const f = S.find;
+  if (!f || f.over) return [];
+  const q = f.qs[f.i], out = [];
+  if (f.wrong && !f.solved) out.push({ ...f.wrong, color: "#e0475b", width: 3, fill: f.wrong.type === "continent" ? null : "rgba(255, 255, 255, .3)" });
+  if (f.hint && !f.solved) {
+    if (q.type === "country") out.push({ type: "continent", name: WORLD.byCountry.get(q.name).continent, color: "#2763d6", width: 4 });
+    if (q.type === "city") out.push({ type: "country", name: q.dot.country, color: "#2763d6", width: 4, fill: "rgba(39, 99, 214, .18)" });
+  }
+  if (f.solved) {
+    out.push(q.type === "city" ? { type: "city", name: q.name, color: "#ffc83d" } : { type: q.type, name: q.name, color: "#ffc83d", width: 4, fill: q.type === "continent" ? null : "rgba(255, 255, 255, .4)" });
+  }
+  return out;
+}
+function qLabel(q) {
+  if (q.type === "continent") return { icon: `<span class="swatch" style="background:${MONTE[q.name]}"></span>`, word: "continent", name: q.name };
+  if (q.type === "country") return { icon: flagOf((WORLD.byCountry.get(q.name) || {}).iso) || "🚩", word: "country", name: pretty(q.name) };
+  return { icon: q.dot.capital ? "★" : "🏙️", word: "city", name: q.name };
+}
+function findPanel() {
+  const f = S.find;
+  if (!f) return `<div class="card"><h2>Loading the globe…</h2></div>`;
+  if (f.over) {
+    const best = load("wz-findbest", 0);
+    return `<div class="card cheer"><div class="big-emoji">🏆</div><h2>${f.points} points!</h2>
+      <p style="font-size:1.2rem">Out of 30. ${f.points >= best ? "That's your best score!" : `Your best is ${best}.`}</p></div>
+      <button class="big k-find" data-act="findagain">↺ Play again</button>`;
+  }
+  const q = f.qs[f.i], l = qLabel(q);
+  const how = q.type === "continent" ? "Tap the continent." : q.type === "country" ? "Tap the country. Spin and zoom the globe to find it!" : "Tap the right dot. Spin and zoom to find it!";
+  return `<div class="card findcard">
+      <div class="findtop"><span class="muted">Question ${f.i + 1} of ${f.qs.length}</span><span class="points">${f.points} pts</span></div>
+      <div class="ex-head"><div><span class="qlead">Find the ${l.word}</span><h2 class="findname" id="findname">${l.icon} ${esc(l.name)}</h2></div>${speakBtn(`Find ${q.type === "country" ? theName(q.name) : q.name}. It's a ${l.word}.`)}</div>
+      <p class="muted">${how} <b>3</b> points on the first try, <b>2</b> on the second, <b>1</b> on the third.</p>
+      ${f.msg ? `<p class="note ${f.solved ? "good" : ""}">${esc(f.msg)}</p>` : ""}
+      ${f.solved ? `<button class="big k-find" data-act="findnext">${f.i + 1 < f.qs.length ? "Next ➜" : "See my points"}</button>` : ""}
+    </div>`;
+}
+function findTap(hit) {
+  const f = S.find;
+  if (!f || f.over || f.solved) return;
+  const q = f.qs[f.i];
+  let ok = false, what = null;
+  if (hit.space) { f.msg = "Tap on the globe!"; updatePanel(); return; }
+  if (q.type === "city") {
+    if (hit.city) {
+      ok = hit.city === q.dot;
+      what = `That's ${hit.city.name}, a city in ${theName(hit.city.country)}.`;
+      f.wrong = { type: "city", name: hit.city.name };
+    } else {
+      f.msg = hit.country ? `That's ${theName(hit.country.name)}. Tap right on one of the dots.` : "Tap right on one of the dots.";
+      updatePanel(); say(f.msg); return;
+    }
+  } else if (hit.ocean) {
+    f.msg = "That's the ocean! Try again."; updatePanel(); say(f.msg); return;
+  } else if (q.type === "continent") {
+    ok = hit.continent === q.name;
+    what = SEVEN.includes(hit.continent) ? `That's ${hit.continent}, a different continent.` : `That's an island in Oceania, not a continent.`;
+    f.wrong = { type: "continent", name: hit.continent };
+  } else {
+    ok = hit.country.name === q.name;
+    what = `That's ${theName(hit.country.name)}, a country in ${hit.country.continent}.`;
+    f.wrong = { type: "country", name: hit.country.name };
+  }
+  if (ok) {
+    const pts = [3, 2, 1][f.tries] || 0;
+    f.points += pts; f.solved = true; f.wrong = null;
+    if (f.tries === 0) addStar();
+    f.msg = `Yes! +${pts} ${pts === 1 ? "point" : "points"}. ` + (q.type === "country" ? `${pretty(q.name)} is in ${WORLD.byCountry.get(q.name).continent}.` : q.type === "city" ? `${q.name} is in ${theName(q.dot.country)}.` : `${q.name} is a continent.`);
+    say(f.msg);
+  } else {
+    f.tries++;
+    if (f.tries >= 3) {
+      f.solved = true; f.wrong = null;
+      f.msg = `Here it is! ${qLabel(q).name} is right here. No points this time, but now you know where it is!`;
+      const t = findTarget(q); if (t) S.globe.flyTo(t[0], t[1], t[2]);
+    } else if (f.tries === 2) {
+      f.hint = true;
+      const hintText = q.type === "country" ? `Hint: it's in ${WORLD.byCountry.get(q.name).continent}. Look inside the blue line.` : q.type === "city" ? `Hint: it's in ${theName(q.dot.country)}. Look inside the blue line.` : "Hint: I turned the globe toward it.";
+      f.msg = `${what} ${hintText}`;
+      const t = findTarget(q);
+      if (t) S.globe.flyTo(t[0], t[1], Math.max(S.globe.cam.km, q.type === "continent" ? 4200 : 3000));
+    } else {
+      f.msg = `${what} Try again!`;
+    }
+    say(f.msg);
+  }
+  updatePanel();
+  if (!ok && !f.solved) shakeEl("findname");
+}
+
+// ---------- Render + header ----------
+const $view = document.getElementById("view");
+const $back = document.getElementById("back");
+const $title = document.getElementById("barTitle");
+const $stars = document.getElementById("stars");
+const $read = document.getElementById("readToggle");
+
+function render() {
+  $view.innerHTML = VIEWS[S.view]();
+  const a = ACTIVITIES.find(x => x.id === S.view);
+  $back.hidden = S.view === "home";
+  $title.textContent = a ? a.title : "";
+  $stars.textContent = "⭐ " + stars;
+  $read.innerHTML = readAloud ? '🔊<span class="rt"> Read aloud: On</span>' : '🔇<span class="rt"> Read aloud: Off</span>';
+  $read.setAttribute("aria-pressed", String(readAloud));
+  if (S.view === "zoom") { if (!cam) cam = camFor(chain(S.trip)[S.level]); drawMap(); }
+  if (S.view === "explore" || S.view === "find") mountGlobe();
+  else if (S.globe) { S.globe.destroy(); S.globe = null; }
+}
+function addStar() {
+  stars++; save("wz-stars", stars); $stars.textContent = "⭐ " + stars;
+  $stars.classList.remove("pop"); void $stars.offsetWidth; $stars.classList.add("pop");
+}
+function shakeEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
+}
+function route() {
+  const r = location.hash.slice(1);
+  S.view = VIEWS[r] && r !== "home" ? r : "home";
+  if (S.view === "quiz" && !S.quiz) newQuiz();
+  if (S.view === "stack" && !S.stack) newStack(false);
+  if (S.view === "find" && !S.find) newFind();
+  render();
+  window.scrollTo(0, 0);
+}
+
+// ---------- Zoom actions (start at the city, zoom out to Earth) ----------
+function levelSpeech() {
+  const ch = chain(S.trip), cur = ch[S.level];
+  if (S.level === 0) return `${sentence(cur)} You zoomed all the way out! The whole address is: ${address(S.trip)}.`;
+  return sentence(cur);
+}
+function setLevel(level) {
+  const ch = chain(S.trip);
+  S.level = Math.max(0, Math.min(ch.length - 1, level));
+  render();
+  mapGo(ch[S.level], true);
+  say(levelSpeech());
+}
+function zoomOut() { S.level === 0 ? setLevel(chain(S.trip).length - 1) : setLevel(S.level - 1); }
+function zoomIn() { setLevel(S.level + 1); }
+
+// ---------- Political map (Natural Earth, drawn on a globe with d3-geo) ----------
+let WORLD = null;
+const R_EARTH_KM = 6371;
+const MAP = {
+  ocean: "#b9dcf2", land: ["#f4efe3", "#e7efdd", "#f1e5e8", "#e3ebf3", "#f3e8d6", "#e8e2f1", "#eef0dc"],
+  border: "#ffffff", stateBorder: "rgba(70, 80, 120, .35)", rim: "#8fbfe0",
+};
+const KIND_HEX = { planet: "#1aa3b8", continent: "#8452d6", country: "#2763d6", state: "#e67e12", city: "#24984f" };
+let cam = null, anim = null;
+
+function prepWorld(d) {
+  const toFeature = r => {
+    // d3 wants each ring wound so it covers the small side of the globe.
+    const polys = r.rings.map(ring => {
+      let poly = { type: "Polygon", coordinates: [ring] };
+      if (d3.geoArea(poly) > 2 * Math.PI) poly = { type: "Polygon", coordinates: [ring.slice().reverse()] };
+      return poly.coordinates;
+    });
+    return { ...r, feature: { type: "Feature", geometry: { type: "MultiPolygon", coordinates: polys } } };
+  };
+  return { countries: d.countries.map(toFeature), states: d.states.map(toFeature), continents: (d.continents || []).map(toFeature), capitals: d.capitals || [] };
+}
+function camFor(p) {
+  // Cities have no border in the data, so show a little of what's around them.
+  return { lon: p.lon, lat: p.lat, km: Math.max(p.zoom * 0.55 / 1000, 90) };
+}
+function projectionFor(c, w, h) {
+  const half = Math.min(w, h) / 2;
+  const theta = c.km / R_EARTH_KM;
+  const scale = theta >= 1.35 ? half * 0.92 : half / Math.sin(theta);
+  return d3.geoOrthographic().rotate([-c.lon, -c.lat]).scale(scale).translate([w / 2, h / 2]).clipAngle(90).precision(0.3);
+}
+function mapGo(p, animate) {
+  const to = camFor(p);
+  if (!cam || !animate || reduced) { cam = to; anim = null; drawMap(); return; }
+  const from = { ...cam }, geo = d3.geoInterpolate([from.lon, from.lat], [to.lon, to.lat]);
+  const t0 = performance.now(), dur = 1600;
+  anim = { step(now) {
+    const t = Math.min(1, (now - t0) / dur), e = d3.easeCubicInOut(t);
+    const [lon, lat] = geo(e);
+    // Zoom out first, then in, so long trips swing out over the globe.
+    const peak = Math.max(from.km, to.km, d3.geoDistance([from.lon, from.lat], [to.lon, to.lat]) * R_EARTH_KM * 0.8);
+    const k = e < 0.5 ? Math.exp(d3.interpolate(Math.log(from.km), Math.log(peak))(e * 2)) : Math.exp(d3.interpolate(Math.log(peak), Math.log(to.km))((e - 0.5) * 2));
+    cam = { lon, lat, km: k };
+    drawMap();
+    if (t < 1) requestAnimationFrame(anim.step); else anim = null;
+  } };
+  requestAnimationFrame(anim.step);
+}
+function highlights() {
+  // Every box in the address gets its own color on the map: continent,
+  // then the country inside it, then the state, then the city dot.
+  const ch = chain(S.trip), out = { countries: new Map(), states: new Map(), city: null };
+  const cur = ch[S.level];
+  for (const p of ch) {
+    const strong = p === cur;
+    if (p.kind === "continent") for (const c of WORLD.countries) if (c.continent === p.name) out.countries.set(c.name, { kind: "continent", strong });
+    if (p.kind === "country") out.countries.set(p.map || p.name, { kind: "country", strong });
+    if (p.kind === "state") out.states.set(p.name, { kind: "state", strong });
+    if (p.kind === "city") out.city = { p, strong };
+  }
+  return out;
+}
+function drawMap() {
+  const canvas = document.getElementById("map");
+  if (!canvas || !WORLD || !cam) return;
+  const box = canvas.parentElement.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(1, Math.round(box.width)), h = Math.max(1, Math.round(box.height));
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const proj = projectionFor(cam, w, h), path = d3.geoPath(proj, ctx);
+  const hl = highlights();
+  const fillFor = (base, mark) => mark ? KIND_HEX[mark.kind] + (mark.kind === "continent" ? "66" : mark.kind === "country" ? "aa" : "dd") : base;
+
+  ctx.beginPath(); path({ type: "Sphere" }); ctx.fillStyle = MAP.ocean; ctx.fill();
+  for (const c of WORLD.countries) {
+    ctx.beginPath(); path(c.feature);
+    ctx.fillStyle = MAP.land[(c.color - 1) % 7]; ctx.fill();
+    const mark = hl.countries.get(c.name);
+    if (mark) { ctx.fillStyle = fillFor(null, mark); ctx.fill(); }
+    ctx.strokeStyle = MAP.border; ctx.lineWidth = 0.8; ctx.stroke();
+  }
+  for (const st of WORLD.states) {
+    ctx.beginPath(); path(st.feature);
+    const mark = hl.states.get(st.name);
+    if (mark) { ctx.fillStyle = fillFor(null, mark); ctx.fill(); }
+    ctx.strokeStyle = MAP.stateBorder; ctx.lineWidth = 0.6; ctx.stroke();
+  }
+  // Thick outline around the level we're looking at.
+  const outline = (feature, kind) => { ctx.beginPath(); path(feature); ctx.strokeStyle = KIND_HEX[kind]; ctx.lineWidth = 3; ctx.stroke(); };
+  for (const c of WORLD.countries) { const m = hl.countries.get(c.name); if (m && m.strong) outline(c.feature, m.kind); }
+  for (const st of WORLD.states) { const m = hl.states.get(st.name); if (m && m.strong) outline(st.feature, "state"); }
+  ctx.beginPath(); path({ type: "Sphere" }); ctx.strokeStyle = MAP.rim; ctx.lineWidth = 2; ctx.stroke();
+
+  if (hl.city) {
+    const p = hl.city.p, xy = proj([p.lon, p.lat]);
+    const visible = d3.geoDistance([p.lon, p.lat], [cam.lon, cam.lat]) < Math.PI / 2;
+    if (xy && visible) {
+      const r = hl.city.strong ? 14 : 9;
+      ctx.beginPath(); ctx.arc(xy[0], xy[1], r, 0, 2 * Math.PI);
+      ctx.fillStyle = KIND_HEX.city; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = "#fff"; ctx.stroke();
+      ctx.font = "800 20px 'Baloo 2', sans-serif"; ctx.textBaseline = "middle";
+      ctx.lineWidth = 5; ctx.strokeStyle = "#fff"; ctx.strokeText(p.name, xy[0] + r + 8, xy[1]);
+      ctx.fillStyle = "#1c2240"; ctx.fillText(p.name, xy[0] + r + 8, xy[1]);
+    }
+  }
+}
+window.addEventListener("resize", () => drawMap());
+fetch("world.json").then(r => r.json()).then(d => {
+  if (!window.d3) throw new Error("d3 missing");
+  WORLD = prepWorld(d);
+  afterWorld();
+  const l = document.getElementById("maploading"); if (l) l.hidden = true;
+  if (!cam) cam = camFor(chain(S.trip)[S.level]);
+  drawMap();
+}).catch(() => { const l = document.getElementById("maploading"); if (l) l.textContent = "The map didn't load. Everything else still works."; });
+
+// ---------- Actions ----------
+const ACT = {
+  go(id) {
+    const a = ACTIVITIES.find(x => x.id === id);
+    if (id === "quiz") { newQuiz(); say(`What is ${the(S.quiz.queue[0])}?`); }
+    else if (id === "find") { newFind(); if (S.find) { const q = S.find.qs[0]; say(`Find ${q.type === "country" ? theName(q.name) : q.name}!`); } }
+    else if (id === "stack") { newStack(false); say(a.intro); }
+    else if (a && a.intro) say(a.intro);
+    location.hash = id;
+  },
+  say(text) { say(text, true); },
+  trip(id) { S.trip = byId(id); setLevel(chain(S.trip).length - 1); },
+  zin: zoomIn,
+  zout: zoomOut,
+  jump(i) { setLevel(Number(i)); },
+  hint() { S.quiz.hint = true; render(); say(hintFor(S.quiz.queue[0])); },
+  pick(k) {
+    const q = S.quiz, p = q.queue[0];
+    if (q.picked === p.kind) return;
+    q.picked = k;
+    if (k === p.kind) {
+      if (!q.missed) { addStar(); if (!q.ever.has(p.id)) q.first++; }
+      render();
+      say("Yes! " + sentence(p));
+    } else {
+      q.missed = true; q.ever.add(p.id);
+      render(); shakeEl("qname");
+      say(`Not quite. ${p.name} is not a ${K[k].name.toLowerCase()}. Try again!`);
+    }
+    const fb = document.getElementById("fb");
+    if (fb) fb.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" });
+  },
+  next() {
+    const q = S.quiz, p = q.queue.shift();
+    if (q.missed) q.queue.splice(Math.min(3, q.queue.length), 0, p); else q.done++;
+    q.picked = null; q.missed = false; q.hint = false;
+    render(); window.scrollTo(0, 0);
+    if (q.queue[0]) say(`What is ${the(q.queue[0])}?`);
+    else say(`Round done! You got ${q.first} out of 10 on the first try.`);
+  },
+  again() { newQuiz(); render(); say(`What is ${the(S.quiz.queue[0])}?`); },
+  place(id) {
+    const st = S.stack, p = byId(id);
+    if (st.placed >= st.steps.length) return;
+    if (p === st.steps[st.placed]) {
+      st.placed++; st.wrong = null; render();
+      if (st.placed === st.steps.length) { addStar(); say(`You did it! ${address(st.target)}.`); }
+      else say(`${p.name} is a ${word(p).toLowerCase()}.`);
+    } else {
+      st.wrong = id; render();
+      shakeEl("card-" + st.cards.indexOf(p));
+      say(`Hmm. Is ${the(p)} the biggest one left?`);
+    }
+  },
+  newstack() { newStack(false); render(); say("Tap the biggest place first."); },
+  gz(how) {
+    if (!S.globe) return;
+    if (how === "in") S.globe.zoom(0.55);
+    else if (how === "out") S.globe.zoom(1.8);
+    else S.globe.flyTo(S.globe.cam.lon, 20, 9000);
+  },
+  exsel(arg) {
+    const i = arg.indexOf("|"), type = arg.slice(0, i), name = arg.slice(i + 1);
+    if (type === "zoomcont") {
+      const p = PLACES.find(x => x.kind === "continent" && x.name === name);
+      if (p && S.globe) S.globe.flyTo(p.lon, p.lat, 2600);
+      return;
+    }
+    selectPlace({ type, name }, true);
+  },
+  findnext() {
+    const f = S.find;
+    f.i++; f.tries = 0; f.solved = false; f.msg = ""; f.wrong = null; f.hint = false;
+    if (f.i >= f.qs.length) {
+      f.over = true;
+      if (f.points > load("wz-findbest", 0)) save("wz-findbest", f.points);
+      say(`You got ${f.points} points!`);
+    } else {
+      const q = f.qs[f.i];
+      say(`Find ${q.type === "country" ? theName(q.name) : q.name}!`);
+    }
+    updatePanel();
+  },
+  findagain() {
+    newFind(); updatePanel();
+    if (S.find) { const q = S.find.qs[0]; say(`Find ${q.type === "country" ? theName(q.name) : q.name}!`); }
+  },
+};
+
+$view.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]");
+  if (!el || el.disabled) return;
+  ACT[el.dataset.act](el.dataset.arg, el);
+});
+$view.addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches('[role="button"][data-act]')) {
+    e.preventDefault(); ACT[e.target.dataset.act](e.target.dataset.arg, e.target);
+  }
+});
+$back.addEventListener("click", () => { if (synth) synth.cancel(); location.hash = "home"; });
+$read.addEventListener("click", () => {
+  readAloud = !readAloud; save("wz-read", readAloud);
+  if (!readAloud && synth) synth.cancel();
+  render();
+  if (readAloud) say("Read aloud is on.");
+});
+window.addEventListener("hashchange", route);
+route();
+</script>

@@ -1,8 +1,12 @@
 """Builds WorldZoom/Data/world.json from Natural Earth (public domain).
 
-Download these two files from
+Download these three files from
 https://github.com/nvkelso/natural-earth-vector/tree/master/geojson
-and run:  python3 tools/build_world_map.py <dir-with-the-geojson-files>
+(ne_50m_admin_0_countries, ne_50m_admin_1_states_provinces,
+ne_50m_populated_places_simple) and run:  python3 tools/build_world_map.py <dir-with-the-geojson-files>
+
+Optional: with shapely installed (pip install shapely), also merges the
+countries into one outline per continent for the zoomed-out globe.
 
 Output: political borders only. Countries (with continent) and the states /
 provinces of the countries the app talks about, simplified to about 1 km.
@@ -85,6 +89,7 @@ def cap(rings):
 
 
 countries = []
+by_continent = {}
 for f in json.load(open(SRC / "ne_50m_admin_0_countries.geojson"))["features"]:
     p = f["properties"]
     rings = rings_of(f["geometry"], 0.03)
@@ -92,8 +97,12 @@ for f in json.load(open(SRC / "ne_50m_admin_0_countries.geojson"))["features"]:
         continue
     name = p["NAME"]
     continent = "Australia" if name in AUSTRALIA_CONTINENT else p["CONTINENT"]
+    if continent != "Seven seas (open ocean)":
+        by_continent.setdefault(continent, []).append(f["geometry"])
     center, radius = cap(rings)
-    countries.append({"name": name, "continent": continent, "color": p["MAPCOLOR7"],
+    iso = p["ISO_A2_EH"] if p["ISO_A2_EH"] not in (None, "-99") else ""
+    countries.append({"name": name, "continent": continent, "color": p["MAPCOLOR7"], "iso": iso,
+                      "a3": p["ADM0_A3"], "wikidata": p.get("WIKIDATAID") or "",
                       "center": center, "radius": radius, "rings": rings})
 
 states = []
@@ -106,12 +115,41 @@ for f in json.load(open(SRC / "ne_50m_admin_1_states_provinces.geojson"))["featu
         continue
     center, radius = cap(rings)
     states.append({"name": p["name"], "country": p["admin"], "color": 0,
+                   "word": "Province" if p["admin"] == "Canada" else "State",
+                   "wikidata": p.get("wikidataid") or "",
                    "center": center, "radius": radius, "rings": rings})
+
+# National capitals, matched to countries by their 3-letter code.
+by_a3 = {c["a3"]: c["name"] for c in countries}
+capitals = []
+for f in json.load(open(SRC / "ne_50m_populated_places_simple.geojson"))["features"]:
+    p = f["properties"]
+    if p["featurecla"] != "Admin-0 capital" or p["adm0_a3"] not in by_a3:
+        continue
+    capitals.append({"name": " ".join(p["name"].split()), "country": by_a3[p["adm0_a3"]],
+                     "lon": round(p["longitude"], 3), "lat": round(p["latitude"], 3)})
+
+continents = []
+try:
+    from shapely.geometry import shape, mapping
+    from shapely.ops import unary_union
+
+    for name, geoms in sorted(by_continent.items()):
+        merged = unary_union([shape(g).buffer(0) for g in geoms]).buffer(0.02).buffer(-0.02)
+        geom = mapping(merged.simplify(0.04))
+        rings = rings_of(geom, 0.0) if geom["type"] in ("Polygon", "MultiPolygon") else []
+        if rings:
+            center, radius = cap(rings)
+            continents.append({"name": name, "color": 0, "center": center, "radius": radius, "rings": rings})
+except ImportError:
+    print("shapely not installed: skipping continent outlines")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text(json.dumps({
     "source": "Natural Earth 1:50m, public domain (naturalearthdata.com)",
     "countries": countries,
     "states": states,
+    "continents": continents,
+    "capitals": capitals,
 }, separators=(",", ":")))
-print(f"{len(countries)} countries, {len(states)} states -> {OUT} ({OUT.stat().st_size // 1024} KB)")
+print(f"{len(countries)} countries, {len(states)} states, {len(continents)} continents, {len(capitals)} capitals -> {OUT} ({OUT.stat().st_size // 1024} KB)")
