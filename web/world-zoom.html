@@ -581,6 +581,7 @@ const tint = (hex, amt) => {
   return `rgb(${m(n >> 16)},${m((n >> 8) & 255)},${m(n & 255)})`;
 };
 const flagOf = iso => iso && /^[A-Z]{2}$/.test(iso) && iso !== "XK" ? String.fromCodePoint(...[...iso].map(c => 0x1F1E6 + c.charCodeAt(0) - 65)) : "";
+const contText = name => ((WORLD && WORLD.byCountry && WORLD.byCountry.get(name)) || { continents: [] }).continents.filter(c => SEVEN.includes(c)).join(" and ");
 const pretty = n => ({ "United States of America": "United States" }[n] || n);
 const theName = n => /^(United|Netherlands|Philippines|Bahamas|Gambia|Czech|Dominican|Central African|Solomon|Marshall|Maldives)/.test(pretty(n)) ? "the " + pretty(n) : pretty(n);
 const LOD_NAMES = { continents: "Continents", countries: "Countries", capitals: "Capitals" };
@@ -593,8 +594,15 @@ fetch("wiki.json").then(r => (r.ok ? r.json() : null)).then(d => {
 
 let DOTS = [], FIND_POOL = null;
 function afterWorld() {
-  const byCountry = new Map(WORLD.countries.map(c => [c.name, c]));
+  // A country can have pieces on more than one continent (Russia, Turkey,
+  // France's overseas islands). byCountry gives its home piece; partsOf all of them.
+  const byCountry = new Map(WORLD.countries.filter(c => c.main !== false).map(c => [c.name, c]));
   WORLD.byCountry = byCountry;
+  WORLD.partsOf = new Map();
+  for (const c of WORLD.countries) {
+    if (!WORLD.partsOf.has(c.name)) WORLD.partsOf.set(c.name, []);
+    WORLD.partsOf.get(c.name).push(c);
+  }
   const capNames = new Set(WORLD.capitals.map(c => c.name));
   DOTS = WORLD.capitals.map(c => ({ ...c, capital: true }));
   for (const p of PLACES) {
@@ -780,8 +788,7 @@ class Globe {
         const cont = WORLD.continents.find(r => r.name === m.name);
         if (cont) draw(cont.feature);
       } else if (m.type === "country") {
-        const r = WORLD.byCountry && WORLD.byCountry.get(m.name);
-        if (r) draw(r.feature);
+        for (const r of (WORLD.partsOf && WORLD.partsOf.get(m.name)) || []) draw(r.feature);
       } else if (m.type === "state") {
         const r = WORLD.states.find(x => x.name === m.name);
         if (r) draw(r.feature);
@@ -902,14 +909,15 @@ function exploreInfo(s) {
   if (s.type === "country") {
     const c = WORLD.byCountry.get(s.name);
     const caps = WORLD.capitals.filter(x => x.country === s.name);
-    const cont = c ? c.continent : "";
-    let sp = `${pretty(s.name)} is a country${SEVEN.includes(cont) ? " in " + cont : ""}.`;
+    const conts = c ? (c.continents || [c.continent]).filter(x => SEVEN.includes(x)) : [];
+    let sp = `${pretty(s.name)} is a country${conts.length ? " in " + conts.join(" and ") : ""}.`;
+    if (conts.length > 1) sp += { "Russia": " The Ural Mountains are where Europe ends and Asia begins.", "Turkey": " The city of Istanbul is on both sides, so it is in Europe and Asia!" }[s.name] || "";
     if (caps.length) sp += ` Its capital city is ${caps[0].name}.`;
     return { speech: sp + " " + ((WIKI && WIKI["country:" + s.name] || {}).text || ""), html: `
       <div class="ex-title"><span class="bigflag">${flagOf(c && c.iso) || "🚩"}</span><h2>${esc(pretty(s.name))}</h2></div>
       <span class="badge k-country">${K.country.icon} Country</span>
       <p>${esc(sp)}</p>${wikiBlock("country:" + s.name)}
-      <div class="chiprow">${cont ? chipBtn("continent", cont, `<span class="swatch sm" style="background:${MONTE[cont]}"></span> ${esc(cont)}`) : ""}${caps.map(x => chipBtn("city", x.name, "★ " + esc(x.name))).join("")}</div>` };
+      <div class="chiprow">${conts.map(cont => chipBtn("continent", cont, `<span class="swatch sm" style="background:${MONTE[cont]}"></span> ${esc(cont)}`)).join("")}${caps.map(x => chipBtn("city", x.name, "★ " + esc(x.name))).join("")}</div>` };
   }
   if (s.type === "state") {
     const st = WORLD.states.find(x => x.name === s.name);
@@ -1043,14 +1051,14 @@ function findTap(hit) {
     f.wrong = { type: "continent", name: hit.continent };
   } else {
     ok = hit.country.name === q.name;
-    what = `That's ${theName(hit.country.name)}, a country in ${hit.country.continent}.`;
+    what = `That's ${theName(hit.country.name)}, a country in ${contText(hit.country.name) || hit.country.continent}.`;
     f.wrong = { type: "country", name: hit.country.name };
   }
   if (ok) {
     const pts = [3, 2, 1][f.tries] || 0;
     f.points += pts; f.solved = true; f.wrong = null;
     if (f.tries === 0) addStar();
-    f.msg = `Yes! +${pts} ${pts === 1 ? "point" : "points"}. ` + (q.type === "country" ? `${pretty(q.name)} is in ${WORLD.byCountry.get(q.name).continent}.` : q.type === "city" ? `${q.name} is in ${theName(q.dot.country)}.` : `${q.name} is a continent.`);
+    f.msg = `Yes! +${pts} ${pts === 1 ? "point" : "points"}. ` + (q.type === "country" ? `${pretty(q.name)} is in ${contText(q.name)}.` : q.type === "city" ? `${q.name} is in ${theName(q.dot.country)}.` : `${q.name} is a continent.`);
     say(f.msg);
   } else {
     f.tries++;
@@ -1060,7 +1068,7 @@ function findTap(hit) {
       const t = findTarget(q); if (t) S.globe.flyTo(t[0], t[1], t[2]);
     } else if (f.tries === 2) {
       f.hint = true;
-      const hintText = q.type === "country" ? `Hint: it's in ${WORLD.byCountry.get(q.name).continent}. Look inside the blue line.` : q.type === "city" ? `Hint: it's in ${theName(q.dot.country)}. Look inside the blue line.` : "Hint: I turned the globe toward it.";
+      const hintText = q.type === "country" ? `Hint: it's in ${contText(q.name)}. Look inside the blue line.` : q.type === "city" ? `Hint: it's in ${theName(q.dot.country)}. Look inside the blue line.` : "Hint: I turned the globe toward it.";
       f.msg = `${what} ${hintText}`;
       const t = findTarget(q);
       if (t) S.globe.flyTo(t[0], t[1], Math.max(S.globe.cam.km, q.type === "continent" ? 4200 : 3000));
