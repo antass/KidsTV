@@ -32,7 +32,7 @@ struct CheatSheetView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(Array(chain)) { place in
                             HStack(spacing: 12) {
-                                KindBadge(kind: place.kind)
+                                KindBadge(kind: place.kind, word: place.kindWord)
                                     .frame(width: 170, alignment: .leading)
                                 Text(place.title)
                                     .font(.system(.title2, design: .rounded, weight: .bold))

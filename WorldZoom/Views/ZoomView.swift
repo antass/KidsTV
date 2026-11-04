@@ -1,17 +1,16 @@
-import MapKit
 import SwiftUI
 
-/// Pick a destination, then zoom in one level at a time: Earth → continent →
-/// country → state → city. The map flies down and the nested boxes light up
-/// the level you're on, so "bigger place holds smaller place" is something
-/// Charlie sees, not just hears.
+/// Pick a city and start right there. Each "Zoom out" steps up one box:
+/// city → state/province → country → continent → Earth. The map keeps every
+/// box of the address colored, so Charlie sees the smaller place sitting
+/// inside the bigger one at every step.
 struct ZoomView: View {
     @State private var trip = Atlas.home
-    @State private var level = 0
-    @State private var camera: MapCameraPosition = Self.cameraPosition(for: Atlas.chain(to: Atlas.home), level: 0)
+    @State private var level = Atlas.chain(to: Atlas.home).count - 1
 
     private var chain: [Place] { Atlas.chain(to: trip) }
     private var current: Place { chain[level] }
+    private var atTop: Bool { level == 0 }
     private var atBottom: Bool { level == chain.count - 1 }
 
     var body: some View {
@@ -32,7 +31,6 @@ struct ZoomView: View {
                             NestedBoxes(
                                 slots: chain.map { NestSlot($0) },
                                 highlight: level,
-                                fadeInner: true,
                                 onTap: { go(to: $0) }
                             )
                             controls
@@ -45,10 +43,10 @@ struct ZoomView: View {
             .padding(20)
         }
         .background(Color(red: 0.94, green: 0.97, blue: 1.0).ignoresSafeArea())
-        .navigationTitle("Zoom In")
+        .navigationTitle("Zoom Out")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { StarCount() } }
-        .onAppear { Speaker.shared.say("Pick a place, then tap Zoom in!") }
+        .onAppear { Speaker.shared.say("Pick a city, then tap Zoom out!") }
         .onDisappear { Speaker.shared.stop() }
     }
 
@@ -76,25 +74,19 @@ struct ZoomView: View {
     }
 
     private var map: some View {
-        Map(position: $camera, interactionModes: []) {
-            if level > 0 {
-                Marker(trip.name, systemImage: trip.kind.symbol, coordinate: trip.coordinate)
-                    .tint(trip.kind.color)
-            }
-        }
-        .mapStyle(.hybrid(elevation: .realistic))
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .overlay(alignment: .topLeading) {
-            KindBadge(kind: current.kind, large: true)
+        PoliticalMap(chain: chain, level: level)
+            .background(Color(red: 0.94, green: 0.97, blue: 1.0))
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 4) {
+                    KindBadge(kind: current.kind, large: true, word: current.kindWord)
+                    Text(current.title)
+                        .font(.system(size: 40, weight: .heavy, design: .rounded))
+                        .shadow(color: .white, radius: 4)
+                        .shadow(color: .white, radius: 8)
+                }
                 .padding(16)
-        }
-        .overlay(alignment: .bottom) {
-            Text(current.title)
-                .font(.system(size: 40, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
-                .shadow(color: .black, radius: 6)
-                .padding(.bottom, 20)
-        }
+            }
     }
 
     private var explainer: some View {
@@ -102,15 +94,15 @@ struct ZoomView: View {
             HStack(alignment: .firstTextBaseline) {
                 (Text(current.name).foregroundStyle(.primary)
                     + Text(" is a ").foregroundStyle(.secondary)
-                    + Text(current.kind.name.lowercased()).foregroundStyle(current.kind.color))
+                    + Text(current.kindWord.lowercased()).foregroundStyle(current.kind.color))
                     .font(.system(.title, design: .rounded, weight: .heavy))
                 Spacer()
-                SpeakButton(text: Atlas.sentence(for: current))
+                SpeakButton(text: speech)
             }
-            Text(current.kind.meaning)
+            Text(current.kindMeaning)
                 .font(.system(.title3, design: .rounded))
             if let up = Atlas.parent(of: current) {
-                Label("\(current.name) is inside \(up.inSentence).", systemImage: "arrow.down.right.and.arrow.up.left")
+                Label("\(current.name) is inside \(up.inSentence).", systemImage: "arrow.up.left.and.arrow.down.right")
                     .font(.system(.title3, design: .rounded, weight: .semibold))
                     .foregroundStyle(up.kind.color)
             }
@@ -121,7 +113,7 @@ struct ZoomView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.yellow.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
             }
-            if atBottom {
+            if atTop {
                 Text("📬 The whole address: \(Atlas.address(of: trip))")
                     .font(.system(.title3, design: .rounded, weight: .bold))
                     .padding(10)
@@ -136,49 +128,46 @@ struct ZoomView: View {
     private var controls: some View {
         HStack(spacing: 12) {
             Button {
-                go(to: level - 1)
-            } label: {
-                Label("Zoom out", systemImage: "minus.magnifyingglass")
-            }
-            .buttonStyle(BigButtonStyle(color: .gray))
-            .disabled(level == 0)
-            .opacity(level == 0 ? 0.4 : 1)
-
-            Button {
                 go(to: level + 1)
             } label: {
-                Label(atBottom ? "Start over" : "Zoom in", systemImage: atBottom ? "arrow.counterclockwise" : "plus.magnifyingglass")
-                    .frame(maxWidth: .infinity)
+                Label("Zoom in", systemImage: "plus.magnifyingglass")
             }
-            .buttonStyle(BigButtonStyle(color: atBottom ? PlaceKind.planet.color : chain[level + 1].kind.color))
+            .buttonStyle(BigButtonStyle(color: .gray))
+            .disabled(atBottom)
+            .opacity(atBottom ? 0.4 : 1)
+
+            Button {
+                go(to: atTop ? chain.count - 1 : level - 1)
+            } label: {
+                Label(
+                    atTop ? "Back to \(trip.name)" : "Zoom out to \(chain[level - 1].name)",
+                    systemImage: atTop ? "arrow.counterclockwise" : "minus.magnifyingglass"
+                )
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(BigButtonStyle(color: atTop ? trip.kind.color : chain[level - 1].kind.color))
         }
     }
 
     // MARK: Actions
 
+    private var speech: String {
+        atTop
+            ? "\(Atlas.sentence(for: current)) You zoomed all the way out! The whole address is: \(Atlas.address(of: trip))."
+            : Atlas.sentence(for: current)
+    }
+
     private func pick(_ place: Place) {
         trip = place
-        go(to: 0)
+        level = Atlas.chain(to: place).count - 1
+        Speaker.shared.say(Atlas.sentence(for: place))
     }
 
     private func go(to newLevel: Int) {
-        let target = newLevel >= chain.count ? 0 : max(0, newLevel)
-        level = target
-        withAnimation(.easeInOut(duration: 1.6)) {
-            camera = Self.cameraPosition(for: chain, level: target)
-        }
-        if target == chain.count - 1 {
-            Speaker.shared.say("\(Atlas.sentence(for: current)) You made it! The whole address is: \(Atlas.address(of: trip)).")
-        } else {
-            Speaker.shared.say(Atlas.sentence(for: current))
-        }
-    }
-
-    private static func cameraPosition(for chain: [Place], level: Int) -> MapCameraPosition {
-        let place = chain[level]
-        // From space, aim at the continent we're about to visit.
-        let center = place.kind == .planet && chain.count > 1 ? chain[1].coordinate : place.coordinate
-        return .camera(MapCamera(centerCoordinate: center, distance: place.zoom))
+        level = min(max(0, newLevel), chain.count - 1)
+        Speaker.shared.say(speech)
     }
 }
 

@@ -53,7 +53,7 @@ struct StackGameView: View {
     /// Earth is filled in; the rest wait as dashed "Country?" boxes until placed.
     private var slots: [NestSlot] {
         [NestSlot(Atlas.earth)] + steps.enumerated().map { i, place in
-            i < placed ? NestSlot(place) : NestSlot(kind: place.kind, name: nil)
+            i < placed ? NestSlot(place) : NestSlot(kind: place.kind, name: nil, word: place.kindWord)
         }
     }
 
@@ -140,7 +140,7 @@ struct StackGameView: View {
                 stars += 1
                 Speaker.shared.say("You did it! \(Atlas.address(of: target)).")
             } else {
-                Speaker.shared.say("\(place.name) is a \(place.kind.name.lowercased()).")
+                Speaker.shared.say("\(place.name) is a \(place.kindWord.lowercased()).")
             }
         } else {
             wrongCard = place.id

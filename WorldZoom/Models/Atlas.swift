@@ -15,6 +15,14 @@ struct Place: Identifiable, Hashable {
     /// Names that are two kinds at once (Australia, New York). Taught in
     /// Zoom and the cheat sheet, but kept out of the "What is it?" quiz.
     var tricky = false
+    /// Overrides the kind's word, e.g. "Province" for Canada's pieces.
+    var word: String? = nil
+    var meaning: String? = nil
+    /// Name in the Natural Earth map data, when it differs.
+    var mapName: String? = nil
+
+    var kindWord: String { word ?? kind.name }
+    var kindMeaning: String { meaning ?? kind.meaning }
 
     var id: String { "\(kind.rawValue)-\(name)" }
     var coordinate: CLLocationCoordinate2D { .init(latitude: latitude, longitude: longitude) }
@@ -46,7 +54,8 @@ enum Atlas {
 
         // Countries
         Place(name: "United States", kind: .country, parent: "North America", latitude: 39.8, longitude: -98.6, zoom: 6_000_000,
-              emoji: "🇺🇸", note: "The United States is cut into 50 states, like a 50-piece puzzle."),
+              emoji: "🇺🇸", note: "The United States is cut into 50 states, like a 50-piece puzzle.",
+              mapName: "United States of America"),
         Place(name: "Canada", kind: .country, parent: "North America", latitude: 58, longitude: -100, zoom: 6_500_000,
               emoji: "🇨🇦", note: "Canada's pieces are called provinces instead of states."),
         Place(name: "Mexico", kind: .country, parent: "North America", latitude: 23.6, longitude: -102.5, zoom: 3_500_000, emoji: "🇲🇽"),
@@ -80,6 +89,9 @@ enum Atlas {
               note: "Alaska is the biggest state of all 50."),
         Place(name: "New South Wales", kind: .state, parent: "Australia", latitude: -32.5, longitude: 147, zoom: 1_400_000,
               note: "Australia has states too, just like the United States."),
+        Place(name: "Ontario", kind: .state, parent: "Canada", latitude: 49, longitude: -85, zoom: 1_600_000,
+              tricky: true, word: "Province",
+              meaning: "A piece of a country, like a puzzle piece. Canada calls its pieces provinces instead of states."),
 
         // Cities
         Place(name: "Boston", kind: .city, parent: "Massachusetts", latitude: 42.36, longitude: -71.06, zoom: 30_000,
@@ -93,7 +105,7 @@ enum Atlas {
         Place(name: "Chicago", kind: .city, parent: "Illinois", latitude: 41.88, longitude: -87.63, zoom: 40_000),
         Place(name: "Honolulu", kind: .city, parent: "Hawaii", latitude: 21.31, longitude: -157.86, zoom: 30_000),
         Place(name: "Sydney", kind: .city, parent: "New South Wales", latitude: -33.87, longitude: 151.21, zoom: 50_000),
-        Place(name: "Toronto", kind: .city, parent: "Canada", latitude: 43.65, longitude: -79.38, zoom: 30_000),
+        Place(name: "Toronto", kind: .city, parent: "Ontario", latitude: 43.65, longitude: -79.38, zoom: 30_000),
         Place(name: "Mexico City", kind: .city, parent: "Mexico", latitude: 19.43, longitude: -99.13, zoom: 50_000),
         Place(name: "Rio de Janeiro", kind: .city, parent: "Brazil", latitude: -22.9, longitude: -43.2, zoom: 40_000),
         Place(name: "Warsaw", kind: .city, parent: "Poland", latitude: 52.23, longitude: 21.01, zoom: 30_000),
@@ -149,7 +161,7 @@ enum Atlas {
 
     /// "Massachusetts is a state. A state is a piece of a country… It is inside the United States."
     static func sentence(for place: Place) -> String {
-        var parts = ["\(place.name) is a \(place.kind.name.lowercased()).", place.kind.meaning]
+        var parts = ["\(place.name) is a \(place.kindWord.lowercased()).", place.kindMeaning]
         if let up = parent(of: place) {
             parts.append("\(place.name) is inside \(up.inSentence).")
         }

@@ -4,16 +4,19 @@ import SwiftUI
 struct NestSlot: Identifiable {
     let kind: PlaceKind
     let name: String?
+    var word: String
     var id: Int { kind.rawValue }
 
     init(_ place: Place) {
         kind = place.kind
         name = place.title
+        word = place.kindWord
     }
 
-    init(kind: PlaceKind, name: String?) {
+    init(kind: PlaceKind, name: String?, word: String? = nil) {
         self.kind = kind
         self.name = name
+        self.word = word ?? kind.name
     }
 }
 
@@ -49,11 +52,11 @@ private struct NestBox: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: slot.kind.symbol)
-                Text(slot.name ?? "\(slot.kind.name)?")
+                Text(slot.name ?? "\(slot.word)?")
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 Spacer(minLength: 4)
-                Text(slot.kind.name.uppercased())
+                Text(slot.word.uppercased())
                     .font(.system(.caption, design: .rounded, weight: .heavy))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)

@@ -82,9 +82,11 @@ enum PlaceKind: Int, CaseIterable, Identifiable, Comparable {
 struct KindBadge: View {
     let kind: PlaceKind
     var large = false
+    /// e.g. "Province" instead of "State".
+    var word: String? = nil
 
     var body: some View {
-        Label(kind.name.uppercased(), systemImage: kind.symbol)
+        Label((word ?? kind.name).uppercased(), systemImage: kind.symbol)
             .font(.system(large ? .title2 : .subheadline, design: .rounded, weight: .heavy))
             .foregroundStyle(.white)
             .padding(.horizontal, large ? 16 : 10)

@@ -7,7 +7,7 @@ enum Activity: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .zoom: "Zoom In"
+        case .zoom: "Zoom Out"
         case .sort: "What Is It?"
         case .stack: "Stack It"
         case .cheatSheet: "Cheat Sheet"
@@ -16,7 +16,7 @@ enum Activity: String, CaseIterable, Identifiable, Hashable {
 
     var blurb: String {
         switch self {
-        case .zoom: "Fly from space all the way down to a city."
+        case .zoom: "Start in a city and zoom out, all the way to the whole Earth."
         case .sort: "Is it a city, a state, a country, or a continent?"
         case .stack: "Put the places in order, biggest to smallest."
         case .cheatSheet: "All four kinds of places on one page."
@@ -25,7 +25,7 @@ enum Activity: String, CaseIterable, Identifiable, Hashable {
 
     var symbol: String {
         switch self {
-        case .zoom: "plus.magnifyingglass"
+        case .zoom: "minus.magnifyingglass"
         case .sort: "questionmark.bubble.fill"
         case .stack: "square.stack.3d.down.right.fill"
         case .cheatSheet: "book.fill"
