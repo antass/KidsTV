@@ -139,9 +139,16 @@ make it a Zoom In destination, add its name to `Atlas.trips`.
 
 ## Build and run
 
-Xcode 26+, iPadOS 18+. Open `WorldZoom.xcodeproj`, plug in the iPad (or pick
-an iPad simulator), ⌘R. Same signing team as KidsTV; a free Apple ID build
-expires after 7 days. The map needs internet; everything else works offline.
+Xcode 26+, iPadOS 18+ / macOS 15+. Same signing team as KidsTV; a free
+Apple ID build expires after 7 days. The map needs internet; everything else
+works offline.
+
+- **iPad:** open `WorldZoom.xcodeproj`, plug in the iPad (or pick an iPad
+  simulator), ⌘R.
+- **Mac:** same project, pick **My Mac (Mac Catalyst)** as the run
+  destination, ⌘R. It's the same code running as a native Mac app. To keep it,
+  Product → Archive → Distribute App → Copy App, then drag `World Zoom.app`
+  into Applications.
 
 ```
 WorldZoom/
