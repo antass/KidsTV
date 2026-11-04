@@ -28,6 +28,30 @@ CONTINENT_TITLES = {
     "South America": "South America", "Australia": "Australia (continent)", "Antarctica": "Antarctica",
     "Oceania": "Oceania",
 }
+# Names that need an exact article (ambiguous or unusual on Wikipedia).
+OVERRIDES = {
+    "country:Georgia": "Georgia (country)",
+    "state:Georgia": "Georgia (U.S. state)",
+    "state:Victoria": "Victoria (state)",
+    "state:North Dakota": "North Dakota",
+    "country:Congo": "Republic of the Congo",
+    "country:Central African Rep.": "Central African Republic",
+    "country:Bosnia and Herz.": "Bosnia and Herzegovina",
+    "country:Antigua and Barb.": "Antigua and Barbuda",
+    "country:U.S. Virgin Is.": "United States Virgin Islands",
+    "country:Pitcairn Is.": "Pitcairn Islands",
+    "country:St. Pierre and Miquelon": "Saint Pierre and Miquelon",
+    "country:Wallis and Futuna Is.": "Wallis and Futuna",
+    "country:St-Martin": "Collectivity of Saint Martin",
+    "country:St-Barthélemy": "Saint Barthélemy",
+    "country:Fr. Polynesia": "French Polynesia",
+    "country:Fr. S. Antarctic Lands": "French Southern and Antarctic Lands",
+    "country:Faeroe Is.": "Faroe Islands",
+    "country:N. Cyprus": "Northern Cyprus",
+    "country:Indian Ocean Ter.": "British Indian Ocean Territory",
+    "country:Heard I. and McDonald Is.": "Heard Island and McDonald Islands",
+    "city:Saint John's": "St. John's, Antigua and Barbuda",
+}
 # Cities the app teaches that aren't national capitals.
 APP_CITIES = {
     "Boston": "Boston", "Orlando": "Orlando, Florida", "Miami": "Miami", "Los Angeles": "Los Angeles",
@@ -37,7 +61,7 @@ APP_CITIES = {
 
 
 def get_json(url):
-    for attempt in range(4):
+    for attempt in range(6):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
             with urllib.request.urlopen(req, timeout=20) as r:
@@ -46,7 +70,8 @@ def get_json(url):
             if e.code == 404:
                 return None
             if e.code == 429 or e.code >= 500:
-                time.sleep(2 ** attempt)
+                wait = e.headers.get("Retry-After")
+                time.sleep(float(wait) if wait and wait.isdigit() else 3 * 2 ** attempt)
                 continue
             return None
         except (urllib.error.URLError, TimeoutError):
@@ -122,11 +147,20 @@ def main():
     for name, title in APP_CITIES.items():
         jobs[f"city:{name}"] = [("simple", title), ("en", title)]
 
-    keys = list(jobs)
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    for key, title in OVERRIDES.items():
+        jobs[key] = [("simple", title), ("en", title)]
+
+    # Resume: keep entries already from Simple English Wikipedia; redo the rest.
+    items = {}
+    if OUT.exists():
+        old = json.loads(OUT.read_text()).get("items", {})
+        items = {k: v for k, v in old.items() if k in jobs and v.get("source") == "Simple English Wikipedia"}
+    keys = [k for k in jobs if k not in items]
+    print(f"{len(items)} kept, fetching {len(keys)}")
+    with ThreadPoolExecutor(max_workers=2 if items else 4) as pool:
         results = list(pool.map(lambda k: summary(jobs[k]), keys))
-    items = {k: v for k, v in zip(keys, results) if v}
-    missing = [k for k, v in zip(keys, results) if not v]
+    items.update({k: v for k, v in zip(keys, results) if v})
+    missing = [k for k in jobs if k not in items]
 
     OUT.write_text(json.dumps({
         "license": "Text from Simple English Wikipedia and Wikipedia, CC BY-SA 4.0",

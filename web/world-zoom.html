@@ -466,6 +466,7 @@ function zoomView() {
         ${up ? `<p class="inside k-${up.kind}">↳ ${esc(cur.name)} is inside ${esc(the(up))}.</p>` : ""}
         ${cur.note ? `<p class="note">💡 ${esc(cur.note)}</p>` : ""}
         ${top ? `<p class="addr">📬 The whole address: <b>${esc(address(S.trip))}</b></p>` : ""}
+        ${cur.kind === "planet" ? "" : wikiBlock(`${cur.kind}:${cur.map || cur.name}`)}
       </div>
       ${nest(slotsFor(S.trip), S.level, false, "jump")}
       <div class="controls">
@@ -590,6 +591,7 @@ let WIKI = null;
 fetch("wiki.json").then(r => (r.ok ? r.json() : null)).then(d => {
   WIKI = d && d.items;
   if (S.view === "explore") updatePanel();
+  if (S.view === "zoom") render();
 }).catch(() => {});
 
 let DOTS = [], FIND_POOL = null;
