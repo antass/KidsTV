@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 WORLD = ROOT / "WorldZoom" / "Data" / "world.json"
 OUT = ROOT / "WorldZoom" / "Data" / "wiki.json"
-UA = "WorldZoomBuilder/1.0 (kids geography app; build-time fetch)"
+UA = "WorldZoomBuilder/1.0 (https://github.com/antass/KidsTV; kids geography app build script) python-urllib"
 
 CONTINENT_TITLES = {
     "Africa": "Africa", "Asia": "Asia", "Europe": "Europe", "North America": "North America",
@@ -123,7 +123,7 @@ def main():
         jobs[f"city:{name}"] = [("simple", title), ("en", title)]
 
     keys = list(jobs)
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         results = list(pool.map(lambda k: summary(jobs[k]), keys))
     items = {k: v for k, v in zip(keys, results) if v}
     missing = [k for k, v in zip(keys, results) if not v]
