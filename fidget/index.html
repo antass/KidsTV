@@ -20,6 +20,8 @@ body{height:100%;margin:0;background:var(--night);color:var(--ink);font-family:v
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation}
 button:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--c3);outline-offset:2px}
 
+.app.rot{position:fixed;left:50%;top:50%;padding-left:16px;padding-right:16px;
+  padding-block:calc(max(env(safe-area-inset-left,0px),env(safe-area-inset-right,0px)) + 6px)}
 .app{height:100%;display:flex;flex-direction:column;gap:10px;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px 6px}
 
@@ -259,19 +261,51 @@ $('#mute').addEventListener('click', e => {
   e.currentTarget.setAttribute('aria-label', muted ? 'Sound on' : 'Sound off');
 });
 
+/* ---------- stay portrait: when a phone turns sideways, turn the app back ---------- */
+const app = $('.app');
+let rot = 0;
+const touchPhone = matchMedia('(pointer: coarse)').matches;
+function screenAngle(){
+  let a = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
+        : (typeof window.orientation === 'number' ? window.orientation : 0);
+  return ((a % 360) + 360) % 360;
+}
+function applyLock(){
+  const a = touchPhone ? screenAngle() : 0;
+  rot = (a === 90 || a === 270) ? a : 0;
+  if (rot){
+    app.classList.add('rot');
+    app.style.width = innerHeight + 'px'; app.style.height = innerWidth + 'px';
+    app.style.transform = `translate(-50%,-50%) rotate(${-rot}deg)`;
+  } else {
+    app.classList.remove('rot');
+    app.style.width = app.style.height = app.style.transform = '';
+  }
+}
+addEventListener('resize', applyLock);
+addEventListener('orientationchange', () => setTimeout(applyLock, 60));
+if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', applyLock);
+applyLock();
+// finger position inside an element, undoing the app's turn
+function toLocal(el, cx, cy){
+  const r = el.getBoundingClientRect(), dx = cx - (r.left + r.width/2), dy = cy - (r.top + r.height/2);
+  const a = rot*Math.PI/180;
+  return {x: dx*Math.cos(a) - dy*Math.sin(a) + el.clientWidth/2, y: dx*Math.sin(a) + dy*Math.cos(a) + el.clientHeight/2};
+}
+
 /* ---------- canvas helper ---------- */
 function makeCanvas(id){
   const cv = document.getElementById(id), ctx = cv.getContext('2d');
   const o = {cv, ctx, w:0, h:0, onresize:null};
   new ResizeObserver(() => {
-    const r = cv.getBoundingClientRect(); if (!r.width || !r.height) return;
+    const r = {width:cv.clientWidth, height:cv.clientHeight}; if (!r.width || !r.height) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     o.w = r.width; o.h = r.height;
     cv.width = Math.round(r.width*dpr); cv.height = Math.round(r.height*dpr);
     ctx.setTransform(dpr,0,0,dpr,0,0);
     o.onresize && o.onresize();
   }).observe(cv);
-  o.pt = e => { const r = cv.getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; };
+  o.pt = e => toLocal(cv, e.clientX, e.clientY);
   return o;
 }
 
@@ -331,7 +365,7 @@ const Gears = (() => {
     lv.style.setProperty('--v', lever); lv.setAttribute('aria-valuenow', Math.round(lever*100));
   }
   let lvId = null;
-  const fromY = e => { const r = track.getBoundingClientRect(); setLever(1 - 2*clamp((e.clientY - r.top - 23)/(r.height - 46),0,1)); };
+  const fromY = e => { const y = toLocal(track, e.clientX, e.clientY).y; setLever(1 - 2*clamp((y - 23)/(track.clientHeight - 46),0,1)); };
   lv.addEventListener('pointerdown', e => { lvId = e.pointerId; lv.setPointerCapture(lvId); fromY(e); });
   lv.addEventListener('pointermove', e => { if (e.pointerId === lvId) fromY(e); });
   lv.addEventListener('pointerup', () => lvId = null); lv.addEventListener('pointercancel', () => lvId = null);
@@ -444,9 +478,8 @@ const Shapes = (() => {
     gotOri = true;
     const b = e.beta*Math.PI/180, g = e.gamma*Math.PI/180;
     const x = Math.cos(b)*Math.sin(g), y = Math.sin(b);
-    const ang = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI/180;
-    const sx = x*Math.cos(-ang) - y*Math.sin(-ang), sy = x*Math.sin(-ang) + y*Math.cos(-ang);
-    tilt.x += (sx - tilt.x)*.25; tilt.y += (sy - tilt.y)*.25;
+    // the app always stays in the phone's portrait frame, so the phone's own axes are the screen's axes
+    tilt.x += (x - tilt.x)*.25; tilt.y += (y - tilt.y)*.25;
   }
   const tiltBtn = $('#sTilt');
   function tiltOff(msg){
