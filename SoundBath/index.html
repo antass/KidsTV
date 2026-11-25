@@ -1,0 +1,638 @@
+<!doctype html><!--pwa-->
+<html lang="en"><!--pwa-->
+<head><!--pwa-->
+<meta charset="utf-8"><!--pwa-->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"><!--pwa-->
+<meta name="apple-mobile-web-app-capable" content="yes"><!--pwa-->
+<meta name="mobile-web-app-capable" content="yes"><!--pwa-->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><!--pwa-->
+<meta name="apple-mobile-web-app-title" content="Ma"><!--pwa-->
+<meta name="theme-color" content="#E7E5DC"><!--pwa-->
+<link rel="manifest" href="manifest.webmanifest"><!--pwa-->
+<link rel="apple-touch-icon" href="icon-180.png"><!--pwa-->
+<link rel="icon" href="icon.svg" type="image/svg+xml"><!--pwa-->
+<title>Ma Sound Bath</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=Zen+Kaku+Gothic+New:wght@400;500&display=swap">
+<style>
+/* Layout: one quiet stage of five rin bowls + temple bell + wind chime; a narrow side column holds the session ensō and the ambience faders. */
+:root {
+  --paper: #E7E5DC;      /* washi, faint grey-green */
+  --paper-2: #DEDCD2;
+  --ink: #23262A;        /* sumi */
+  --ink-soft: #686C68;
+  --hair: rgba(35, 38, 42, .14);
+  --accent: #2F4B66;     /* aizome indigo */
+  --bowl-hi: #F2F1EB;
+  --bowl-lo: #CFCCC0;
+  --serif: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  --sans: "Zen Kaku Gothic New", "Hiragino Sans", -apple-system, "Helvetica Neue", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #121417; --paper-2: #181B1F; --ink: #DAD6CA; --ink-soft: #8D908B;
+    --hair: rgba(218, 214, 202, .13); --accent: #9FB6CC; --bowl-hi: #2A2E33; --bowl-lo: #15181B;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #121417; --paper-2: #181B1F; --ink: #DAD6CA; --ink-soft: #8D908B;
+  --hair: rgba(218, 214, 202, .13); --accent: #9FB6CC; --bowl-hi: #2A2E33; --bowl-lo: #15181B;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { min-height: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 400 15px/1.55 var(--sans);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  transition: background .8s ease, color .8s ease;
+}
+.app {
+  min-height: 100vh; min-height: 100dvh;
+  display: grid; grid-template-rows: auto 1fr;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 24px;
+  gap: 8px;
+}
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-inline: 8px; }
+.mark { display: flex; align-items: baseline; gap: 14px; }
+.mark h1 { margin: 0; font: 600 30px/1 var(--serif); letter-spacing: .02em; }
+.mark h1 span { font-weight: 400; color: var(--ink-soft); margin-left: .35em; font-size: 24px; }
+.mark p { margin: 0; color: var(--ink-soft); font-size: 13px; letter-spacing: .04em; }
+.icon-btn {
+  appearance: none; border: 1px solid var(--hair); background: transparent; color: var(--ink-soft);
+  font: 500 12px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase;
+  padding: 10px 14px; border-radius: 999px; cursor: pointer;
+}
+.icon-btn:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; min-height: 0; }
+@media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); align-content: center; gap: 44px; } .stage { min-height: 0; } }
+
+/* ---------- Stage ---------- */
+.stage { position: relative; min-height: 520px; display: flex; flex-direction: column; justify-content: center; gap: 36px; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.row { position: relative; container-type: inline-size; display: flex; justify-content: center; align-items: flex-end; flex-wrap: nowrap; gap: clamp(8px, 2.6cqw, 30px); }
+
+.rin {
+  --s: 150px; --sz: min(var(--s), var(--sq, 20cqw));
+  position: relative; display: grid; justify-items: center; gap: 12px;
+  appearance: none; border: 0; background: none; padding: 0; color: inherit; cursor: pointer;
+  touch-action: none; transform: translateY(var(--lift, 0));
+}
+.rin .bowl {
+  width: var(--sz); aspect-ratio: 1; max-width: 100%; border-radius: 50%;
+  display: grid; place-items: center; position: relative;
+  background: radial-gradient(circle at 50% 50%, var(--bowl-lo) 0 40%, var(--bowl-hi) 62%, var(--bowl-lo) 70%, transparent 71%);
+  box-shadow: inset 0 0 0 1.5px var(--hair);
+  transition: transform .9s cubic-bezier(.2, .8, .2, 1);
+}
+.rin .bowl::after {           /* rim */
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  border: 1.5px solid var(--ink); opacity: .55; transition: opacity 1.4s ease, border-color 1.4s ease;
+}
+.rin .kanji { font: 400 calc(var(--sz) * .28)/1 var(--serif); color: var(--ink); opacity: .82; transition: color 1.6s ease, opacity 1.6s ease; }
+.rin .label { font-size: clamp(9px, 1.5cqw, 12px); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
+.rin .label b { font-weight: 500; color: var(--ink); }
+.rin.ringing .bowl { transform: scale(.985); }
+.rin.ringing .bowl::after { opacity: 1; border-color: var(--accent); transition-duration: .08s; }
+.rin.ringing .kanji { color: var(--accent); opacity: 1; transition-duration: .08s; }
+.rin.singing .bowl::after { border-color: var(--accent); opacity: 1; }
+
+.temple { display: flex; justify-content: center; gap: clamp(28px, 6vw, 80px); align-items: flex-end; }
+.instr {
+  appearance: none; border: 0; background: none; color: inherit; cursor: pointer; padding: 0;
+  display: grid; justify-items: center; gap: 10px; touch-action: none;
+}
+.instr svg { display: block; height: 96px; width: auto; overflow: visible; }
+.instr svg .stroke { fill: none; stroke: var(--ink); stroke-width: 1.6; opacity: .7; transition: stroke 1.4s ease, opacity 1.4s ease; }
+.instr svg .fill { fill: var(--bowl-lo); }
+.instr.ringing svg .stroke { stroke: var(--accent); opacity: 1; transition-duration: .08s; }
+.instr .label { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+.instr .label b { font: 400 15px/1 var(--serif); letter-spacing: 0; color: var(--ink); margin-right: 6px; text-transform: none; }
+
+.hint { text-align: center; color: var(--ink-soft); font-size: 13px; letter-spacing: .03em; margin: 0; }
+
+/* ---------- Side column ---------- */
+aside { display: flex; flex-direction: column; gap: 22px; align-self: center; }
+@media (max-width: 960px) { aside { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px 32px; align-items: start; } }
+section h2 {
+  margin: 0 0 12px; font: 500 11px/1 var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--ink-soft);
+  display: flex; align-items: center; gap: 10px;
+}
+section h2::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+
+.enso-wrap { display: grid; justify-items: center; gap: 14px; }
+.enso { position: relative; width: 200px; max-width: 100%; aspect-ratio: 1; }
+.enso svg { width: 100%; height: 100%; display: block; }
+.enso .track { fill: none; stroke: var(--hair); stroke-width: 7; stroke-linecap: round; }
+.enso .prog { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; transition: stroke .8s ease; }
+.enso .readout { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.enso .time { font: 400 38px/1 var(--serif); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.enso .phase { margin-top: 8px; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-soft); }
+
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.chip {
+  appearance: none; cursor: pointer; border: 1px solid var(--hair); background: transparent; color: var(--ink-soft);
+  font: 500 13px/1 var(--sans); font-variant-numeric: tabular-nums; padding: 9px 12px; border-radius: 999px; min-width: 46px;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.chip:disabled { opacity: .45; cursor: default; }
+
+.toggle { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; color: var(--ink-soft); cursor: pointer; }
+.toggle input { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; }
+
+.primary {
+  appearance: none; cursor: pointer; width: 100%; border: 1px solid var(--ink); background: var(--ink); color: var(--paper);
+  font: 500 14px/1 var(--sans); letter-spacing: .18em; text-transform: uppercase; padding: 16px 18px; border-radius: 999px;
+  transition: background .4s ease, color .4s ease;
+}
+.primary.end { background: transparent; color: var(--ink); }
+
+.fader { display: grid; grid-template-columns: 44px 1fr 34px; align-items: center; gap: 12px; padding-block: 6px; }
+.fader .k { font: 400 22px/1 var(--serif); text-align: center; }
+.fader .n { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+.fader output { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: right; }
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; margin: 0; }
+input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: linear-gradient(to right, var(--ink) var(--v, 0%), var(--hair) var(--v, 0%)); border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -10px; border-radius: 50%; background: var(--paper); border: 1.5px solid var(--ink); }
+input[type="range"]::-moz-range-track { height: 2px; background: var(--hair); }
+input[type="range"]::-moz-range-progress { height: 2px; background: var(--ink); }
+input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--paper); border: 1.5px solid var(--ink); }
+
+@media (max-width: 560px) {
+  .stage { min-height: 0; gap: 28px; padding-block: 12px; }
+  .rin { --lift: 0 !important; }
+  .mark p { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; }
+}
+</style>
+</head><!--pwa-->
+<body><!--pwa-->
+<div class="app">
+  <header>
+    <div class="mark">
+      <h1>Ma<span>間</span></h1>
+      <p>The pause between sounds</p>
+    </div>
+    <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch light or dark">Night</button>
+  </header>
+
+  <main>
+    <div class="stage" id="stage">
+      <canvas id="ripples" aria-hidden="true"></canvas>
+
+      <div class="row" id="rinRow" role="group" aria-label="Rin bowls"></div>
+
+      <div class="temple">
+        <button class="instr" id="bonsho" type="button" aria-label="Temple bell, key 6">
+          <svg viewBox="0 0 80 100" aria-hidden="true">
+            <path class="stroke" d="M40 4 v8 M30 12 h20 M22 22 q0 -10 18 -10 q18 0 18 10 v52 q0 6 6 8 h-48 q6 -2 6 -8 z"/>
+            <path class="stroke" d="M22 40 h36 M22 58 h36 M40 22 v18"/>
+            <circle class="stroke" cx="40" cy="68" r="5"/>
+            <path class="stroke" d="M16 86 h48" opacity=".4"/>
+          </svg>
+          <span class="label"><b>鐘</b>Bonshō</span>
+        </button>
+        <button class="instr" id="furin" type="button" aria-label="Wind chime, key 7">
+          <svg viewBox="0 0 60 100" aria-hidden="true">
+            <path class="stroke" d="M30 2 v10"/>
+            <path class="stroke" d="M14 40 q0 -28 16 -28 q16 0 16 28 z"/>
+            <path class="stroke" d="M30 40 v14"/>
+            <rect class="stroke" x="23" y="54" width="14" height="38" rx="1"/>
+          </svg>
+          <span class="label"><b>風鈴</b>Fūrin</span>
+        </button>
+      </div>
+
+      <p class="hint" id="hint">Tap a bowl to strike it. Hold to make it sing. Strike near the rim for a brighter tone.</p>
+    </div>
+
+    <aside>
+      <section aria-labelledby="sessH">
+        <h2 id="sessH">Session</h2>
+        <div class="enso-wrap">
+          <div class="enso">
+            <svg viewBox="0 0 200 200" aria-hidden="true">
+              <path class="track" id="ensoTrack"/>
+              <path class="prog" id="ensoProg" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
+            </svg>
+            <div class="readout">
+              <div class="time" id="time" aria-live="off">20:00</div>
+              <div class="phase" id="phase">Ready</div>
+            </div>
+          </div>
+          <div class="chips" id="durations" role="group" aria-label="Session length in minutes"></div>
+          <label class="toggle"><input type="checkbox" id="drift" checked> Bowls play themselves</label>
+          <button class="primary" id="startBtn" type="button">Begin</button>
+        </div>
+      </section>
+
+      <section aria-labelledby="ambH">
+        <h2 id="ambH">Ambience</h2>
+        <div id="faders"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ---------- Instruments ---------- */
+  // Five rin tuned to the yō pentatonic on D, named for the godai (five elements).
+  const RIN = [
+    { k: "地", name: "Earth", note: "D3", f: 146.83, decay: 26, s: 176, lift: "0px" },
+    { k: "水", name: "Water", note: "G3", f: 196.00, decay: 23, s: 158, lift: "-26px" },
+    { k: "火", name: "Fire",  note: "A3", f: 220.00, decay: 21, s: 142, lift: "-40px" },
+    { k: "風", name: "Wind",  note: "D4", f: 293.66, decay: 18, s: 124, lift: "-26px" },
+    { k: "空", name: "Void",  note: "E4", f: 329.63, decay: 16, s: 108, lift: "0px" },
+  ];
+  // Inharmonic partials of a struck bowl (ratio, relative amplitude, relative decay).
+  const BOWL_PARTIALS = [[1, 1, 1], [2.756, .55, .58], [5.404, .3, .32], [8.933, .14, .17], [13.34, .06, .09]];
+  const BELL = { f: 98, partials: [[.5, .55, 1.3], [1, 1, 1], [1.183, .55, .7], [1.506, .45, .6], [2, .42, .5], [2.514, .28, .36], [2.662, .22, .3], [3.011, .18, .24], [4.166, .1, .16], [5.433, .06, .1]], decay: 32 };
+  const FURIN_NOTES = [2093, 2349.3, 2637, 3136, 3520];
+
+  const AMB = [
+    { id: "rain",   k: "雨",  name: "Rain",       v: 0 },
+    { id: "waves",  k: "波",  name: "Waves",      v: 0 },
+    { id: "chimes", k: "鈴",  name: "Chimes",     v: 0 },
+    { id: "hall",   k: "響",  name: "Resonance",  v: 55 },
+    { id: "master", k: "音",  name: "Volume",     v: 80 },
+  ];
+  const DURATIONS = [5, 10, 20, 30, 45];
+
+  /* ---------- Storage (per device convenience only) ---------- */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("ma." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("ma." + k, JSON.stringify(v)); } catch {} },
+  };
+  const settings = Object.assign({ minutes: 20, drift: true, amb: {} }, store.get("settings", {}));
+  AMB.forEach(a => { if (typeof settings.amb[a.id] === "number") a.v = settings.amb[a.id]; });
+  const save = () => { AMB.forEach(a => settings.amb[a.id] = a.v); store.set("settings", settings); };
+
+  /* ---------- Theme ---------- */
+  const root = document.documentElement, themeBtn = document.getElementById("themeBtn");
+  const isDark = () => root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const paintThemeBtn = () => { themeBtn.textContent = isDark() ? "Day" : "Night"; };
+  const savedTheme = store.get("theme", null); if (savedTheme) root.dataset.theme = savedTheme;
+  themeBtn.addEventListener("click", () => { root.dataset.theme = isDark() ? "light" : "dark"; store.set("theme", root.dataset.theme); paintThemeBtn(); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", paintThemeBtn);
+  paintThemeBtn();
+
+  /* ---------- Audio engine ---------- */
+  let ctx = null, bus = {}, noiseBuf = null;
+
+  function makeNoise(seconds) {
+    const len = Math.floor(ctx.sampleRate * seconds), buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c); let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < len; i++) { // Paul Kellet pink noise
+        const w = Math.random() * 2 - 1;
+        b0 = .99886 * b0 + w * .0555179; b1 = .99332 * b1 + w * .0750759; b2 = .969 * b2 + w * .153852;
+        b3 = .8665 * b3 + w * .3104856; b4 = .55 * b4 + w * .5329522; b5 = -.7616 * b5 - w * .016898;
+        d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * .5362) * .11; b6 = w * .115926;
+      }
+      // crossfade the loop seam
+      const fade = Math.floor(ctx.sampleRate * .05);
+      for (let i = 0; i < fade; i++) { const t = i / fade; d[i] = d[i] * t + d[len - fade + i] * (1 - t); }
+    }
+    return buf;
+  }
+  function makeImpulse(seconds) {
+    const len = Math.floor(ctx.sampleRate * seconds), buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < len; i++) { const t = i / len; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3.2) * (i < 200 ? i / 200 : 1); }
+    }
+    return buf;
+  }
+
+  function unlockIOS() {
+    // Lets Web Audio play with the iPad's silent switch on.
+    try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch {}
+    try {
+      const a = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
+      a.loop = true; a.setAttribute("playsinline", ""); a.volume = 0.01; a.play().catch(() => {});
+    } catch {}
+  }
+
+  function initAudio() {
+    if (ctx) { if (ctx.state !== "running") ctx.resume(); return; }
+    unlockIOS();
+    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.knee.value = 18; comp.ratio.value = 3; comp.attack.value = .01; comp.release.value = .4;
+    bus.master = ctx.createGain(); bus.master.connect(comp); comp.connect(ctx.destination);
+    bus.voice = ctx.createGain();
+    bus.dry = ctx.createGain(); bus.wet = ctx.createGain();
+    bus.verb = ctx.createConvolver(); bus.verb.buffer = makeImpulse(5.5);
+    bus.voice.connect(bus.dry).connect(bus.master);
+    bus.voice.connect(bus.verb).connect(bus.wet).connect(bus.master);
+    bus.amb = ctx.createGain(); bus.amb.connect(bus.master);
+    bus.amb.connect(bus.verb);
+
+    noiseBuf = makeNoise(7);
+    // Rain: bright, steady
+    const rainSrc = ctx.createBufferSource(); rainSrc.buffer = noiseBuf; rainSrc.loop = true;
+    const rainHp = ctx.createBiquadFilter(); rainHp.type = "highpass"; rainHp.frequency.value = 700;
+    const rainLp = ctx.createBiquadFilter(); rainLp.type = "lowpass"; rainLp.frequency.value = 7000;
+    bus.rain = ctx.createGain(); bus.rain.gain.value = 0;
+    rainSrc.connect(rainHp).connect(rainLp).connect(bus.rain).connect(bus.amb); rainSrc.start(0, 1.3);
+    // Waves: dark noise that swells every ~13s
+    const waveSrc = ctx.createBufferSource(); waveSrc.buffer = noiseBuf; waveSrc.loop = true;
+    const waveLp = ctx.createBiquadFilter(); waveLp.type = "lowpass"; waveLp.frequency.value = 650; waveLp.Q.value = .4;
+    const swell = ctx.createGain(); swell.gain.value = .5;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 1 / 13;
+    const lfoDepth = ctx.createGain(); lfoDepth.gain.value = .45; lfo.connect(lfoDepth).connect(swell.gain);
+    const lfoF = ctx.createGain(); lfoF.gain.value = 380; lfo.connect(lfoF).connect(waveLp.frequency);
+    bus.waves = ctx.createGain(); bus.waves.gain.value = 0;
+    waveSrc.connect(waveLp).connect(swell).connect(bus.waves).connect(bus.amb); waveSrc.start(0, 3.7); lfo.start();
+
+    AMB.forEach(a => applyAmb(a, true));
+  }
+
+  function applyAmb(a, instant) {
+    if (!ctx) return;
+    const v = a.v / 100, t = ctx.currentTime, tc = instant ? .01 : .25;
+    if (a.id === "rain") bus.rain.gain.setTargetAtTime(v * v * 1.1, t, tc);
+    if (a.id === "waves") bus.waves.gain.setTargetAtTime(v * v * 1.6, t, tc);
+    if (a.id === "hall") { bus.wet.gain.setTargetAtTime(v * 1.1, t, tc); bus.dry.gain.setTargetAtTime(1 - v * .45, t, tc); }
+    if (a.id === "master") bus.master.gain.setTargetAtTime(v * v, t, tc);
+    if (a.id === "chimes") scheduleChimes();
+  }
+
+  function pan(p) {
+    if (ctx.createStereoPanner) { const n = ctx.createStereoPanner(); n.pan.value = p; return n; }
+    return ctx.createGain();
+  }
+
+  function struck(freq, partials, decay, amp, bright, p, beat, attack = .004) {
+    const t = ctx.currentTime + .005, out = pan(p); out.connect(bus.voice);
+    partials.forEach(([r, a, d], idx) => {
+      const level = amp * a * (idx === 0 ? 1 : bright), dur = decay * d;
+      if (level < .0005) return;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(level, t + attack * (1 + idx * .5));
+      g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      g.connect(out);
+      const spread = beat * (1 + idx * .35);
+      [-.5, .5].forEach(sgn => {
+        const o = ctx.createOscillator(); o.type = "sine";
+        o.frequency.value = freq * r + sgn * spread; o.connect(g); o.start(t); o.stop(t + dur + .05);
+      });
+    });
+    return t;
+  }
+  function thump(freq, q, dur, amp, p) {
+    const t = ctx.currentTime + .005, src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = q;
+    const g = ctx.createGain(); g.gain.setValueAtTime(amp, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    const out = pan(p); src.connect(bp).connect(g).connect(out).connect(bus.voice);
+    src.start(t, Math.random() * 5); src.stop(t + dur + .02);
+  }
+
+  function strikeRin(i, vel = .8, bright = .7) {
+    initAudio();
+    const r = RIN[i], p = (i - 2) * .22;
+    struck(r.f, BOWL_PARTIALS, r.decay * (.75 + vel * .25), .11 * vel, .35 + bright * .9, p, .55 + i * .18);
+    thump(r.f * 7, 1.2, .03, .05 * vel * bright, p);
+    flash(rinEls[i]); ripple(rinEls[i].querySelector(".bowl"), vel);
+  }
+  function strikeBell(vel = .9) {
+    initAudio();
+    struck(BELL.f, BELL.partials, BELL.decay, .1 * vel, .9, 0, .7, .03);
+    thump(180, .6, .22, .22 * vel, 0);
+    flash(bellEl, 2600); ripple(bellEl.querySelector("svg"), 1.4);
+  }
+  function strikeFurin(vel = .7, quiet = false) {
+    initAudio();
+    const f = FURIN_NOTES[Math.floor(Math.random() * FURIN_NOTES.length)];
+    struck(f, [[1, 1, 1], [2.44, .4, .55], [4.32, .2, .3], [6.9, .08, .15]], 3.2, .035 * vel, .9, (Math.random() - .5) * .9, 2.5, .002);
+    if (!quiet) { flash(furinEl, 900); ripple(furinEl.querySelector("svg"), .5); }
+  }
+
+  // Singing: rubbing the rim builds a sustained, slowly pulsing fundamental.
+  const singing = new Map();
+  function startSing(i) {
+    if (!ctx || singing.has(i)) return;
+    const r = RIN[i], t = ctx.currentTime, out = pan((i - 2) * .22); out.connect(bus.voice);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(.075, t, 1.1); g.connect(out);
+    const oscs = [[1, -.35, 1], [1, .35, 1], [2.756, .8, .18]].map(([m, d, a]) => {
+      const o = ctx.createOscillator(), og = ctx.createGain(); og.gain.value = a;
+      o.frequency.value = r.f * m + d; o.connect(og).connect(g); o.start(t); return o;
+    });
+    const lfo = ctx.createOscillator(), depth = ctx.createGain(); lfo.frequency.value = .45; depth.gain.value = .025;
+    lfo.connect(depth).connect(g.gain); lfo.start(t); oscs.push(lfo);
+    singing.set(i, { g, oscs }); rinEls[i].classList.add("singing");
+  }
+  function stopSing(i) {
+    const s = singing.get(i); if (!s) return;
+    const t = ctx.currentTime; s.g.gain.cancelScheduledValues(t); s.g.gain.setValueAtTime(s.g.gain.value, t); s.g.gain.setTargetAtTime(0, t, 1.6);
+    s.oscs.forEach(o => o.stop(t + 10)); singing.delete(i); rinEls[i].classList.remove("singing");
+  }
+
+  // Chimes ambience: a breeze moves the fūrin every few seconds.
+  let chimeTimer = null;
+  function scheduleChimes() {
+    clearTimeout(chimeTimer);
+    const a = AMB.find(x => x.id === "chimes"); if (!ctx || a.v === 0) return;
+    const wait = 2500 + Math.random() * (16000 - a.v * 110);
+    chimeTimer = setTimeout(() => {
+      const n = 1 + Math.floor(Math.random() * 3), v = (a.v / 100) * (bus.amb.gain.value);
+      for (let j = 0; j < n; j++) setTimeout(() => strikeFurin(.35 + v * .6, true), j * (90 + Math.random() * 260));
+      scheduleChimes();
+    }, wait);
+  }
+
+  /* ---------- Build UI ---------- */
+  const rinRow = document.getElementById("rinRow"), bellEl = document.getElementById("bonsho"), furinEl = document.getElementById("furin");
+  const rinEls = RIN.map((r, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "rin"; b.style.setProperty("--s", r.s + "px"); b.style.setProperty("--lift", r.lift); b.style.setProperty("--sq", (r.s / 8.4).toFixed(2) + "cqw");
+    b.setAttribute("aria-label", `${r.name} bowl, ${r.note}, key ${i + 1}`);
+    b.innerHTML = `<span class="bowl"><span class="kanji">${r.k}</span></span><span class="label"><b>${r.name}</b> · ${r.note}</span>`;
+    rinRow.appendChild(b); return b;
+  });
+
+  function flash(el, ms = 1400) { el.classList.add("ringing"); clearTimeout(el._ft); el._ft = setTimeout(() => el.classList.remove("ringing"), ms); }
+
+  // Touch: tap strikes, hold sings. Distance from centre sets brightness.
+  rinEls.forEach((el, i) => {
+    const holds = new Map();
+    el.addEventListener("pointerdown", e => {
+      e.preventDefault(); el.setPointerCapture?.(e.pointerId);
+      const rect = el.querySelector(".bowl").getBoundingClientRect();
+      const dx = e.clientX - (rect.left + rect.width / 2), dy = e.clientY - (rect.top + rect.height / 2);
+      const dist = Math.min(1, Math.hypot(dx, dy) / (rect.width / 2));
+      strikeRin(i, .55 + dist * .4, dist);
+      holds.set(e.pointerId, setTimeout(() => startSing(i), 420));
+    });
+    const up = e => { clearTimeout(holds.get(e.pointerId)); holds.delete(e.pointerId); stopSing(i); };
+    el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); strikeRin(i, .8, .6); } });
+    el.addEventListener("click", e => e.preventDefault());
+  });
+  [[bellEl, () => strikeBell()], [furinEl, () => strikeFurin(.9)]].forEach(([el, fn]) => {
+    el.addEventListener("pointerdown", e => { e.preventDefault(); fn(); });
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
+  });
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("input, button") && (e.key === " " || e.key === "Enter")) return;
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 5) strikeRin(n - 1, .8, .6);
+    if (n === 6) strikeBell(); if (n === 7) strikeFurin(.9);
+  });
+
+  // Faders
+  const faderWrap = document.getElementById("faders");
+  AMB.forEach(a => {
+    const row = document.createElement("div"); row.className = "fader";
+    row.innerHTML = `<span class="k" aria-hidden="true">${a.k}</span><label><span class="n">${a.name}</span><input type="range" id="f-${a.id}" min="0" max="100" step="1" value="${a.v}"></label><output for="f-${a.id}">${a.v || "Off"}</output>`;
+    const input = row.querySelector("input"), out = row.querySelector("output");
+    const paint = () => { input.style.setProperty("--v", a.v + "%"); out.textContent = a.v === 0 && a.id !== "hall" ? "Off" : a.v; };
+    input.addEventListener("input", () => { a.v = +input.value; paint(); initAudio(); restoreAmb(); applyAmb(a); save(); });
+    paint(); faderWrap.appendChild(row);
+  });
+
+  /* ---------- Ripples (ink rings on water) ---------- */
+  const stage = document.getElementById("stage"), cv = document.getElementById("ripples"), g2 = cv.getContext("2d");
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  let rings = [], raf = 0, dpr = 1;
+  function size() { dpr = Math.min(2, devicePixelRatio || 1); const r = stage.getBoundingClientRect(); cv.width = r.width * dpr; cv.height = r.height * dpr; }
+  addEventListener("resize", size); size();
+  function ripple(el, vel) {
+    const s = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
+    const x = r.left + r.width / 2 - s.left, y = r.top + r.height / 2 - s.top;
+    const base = Math.min(r.width, r.height) / 2;
+    const count = reduced.matches ? 1 : 3;
+    for (let j = 0; j < count; j++) rings.push({ x, y, base, t0: performance.now() + j * 380, dur: 4200 + vel * 1800, vel });
+    if (!raf) raf = requestAnimationFrame(draw);
+  }
+  function draw(now) {
+    const ink = getComputedStyle(root).getPropertyValue("--accent").trim() || "#2F4B66";
+    g2.setTransform(dpr, 0, 0, dpr, 0, 0); g2.clearRect(0, 0, cv.width, cv.height);
+    rings = rings.filter(r => now - r.t0 < r.dur);
+    for (const r of rings) {
+      const p = (now - r.t0) / r.dur; if (p < 0) continue;
+      const e = 1 - Math.pow(1 - p, 2.4);
+      const rad = r.base + (reduced.matches ? 6 : e * r.base * (1.6 + r.vel));
+      g2.beginPath(); g2.arc(r.x, r.y, rad, 0, Math.PI * 2);
+      g2.strokeStyle = ink; g2.globalAlpha = (1 - p) * .34 * Math.min(1, r.vel + .3); g2.lineWidth = 1 + (1 - p) * 2.2; g2.stroke();
+    }
+    g2.globalAlpha = 1;
+    raf = rings.length ? requestAnimationFrame(draw) : 0;
+  }
+
+  /* ---------- Session ---------- */
+  const timeEl = document.getElementById("time"), phaseEl = document.getElementById("phase"), startBtn = document.getElementById("startBtn");
+  const durWrap = document.getElementById("durations"), driftEl = document.getElementById("drift");
+  const prog = document.getElementById("ensoProg"), track = document.getElementById("ensoTrack");
+  // Ensō: an open brush circle, starting just past the top and stopping short of closing.
+  (() => {
+    const cx = 100, cy = 100, R = 80, a0 = -Math.PI / 2 + .32, a1 = a0 + Math.PI * 2 - .55;
+    const pt = a => `${(cx + R * Math.cos(a)).toFixed(2)} ${(cy + R * Math.sin(a)).toFixed(2)}`;
+    const d = `M ${pt(a0)} A ${R} ${R} 0 1 1 ${pt(a1)}`;
+    track.setAttribute("d", d); prog.setAttribute("d", d);
+  })();
+
+  DURATIONS.forEach(m => {
+    const c = document.createElement("button"); c.type = "button"; c.className = "chip"; c.textContent = m + "m";
+    c.setAttribute("aria-label", m + " minutes"); c.dataset.m = m;
+    c.addEventListener("click", () => { settings.minutes = m; save(); paintDur(); renderIdle(); });
+    durWrap.appendChild(c);
+  });
+  if (!DURATIONS.includes(settings.minutes)) settings.minutes = 20;
+  driftEl.checked = settings.drift;
+  driftEl.addEventListener("change", () => { settings.drift = driftEl.checked; save(); if (session && driftEl.checked) scheduleDrift(); });
+
+  const fmt = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+  function paintDur() { durWrap.querySelectorAll(".chip").forEach(c => { c.setAttribute("aria-pressed", String(+c.dataset.m === settings.minutes)); c.disabled = !!session; }); }
+  function renderIdle() { timeEl.textContent = fmt(settings.minutes * 60); prog.setAttribute("stroke-dashoffset", "1"); }
+
+  let session = null, driftTimer = null, tick = 0, wakeLock = null;
+  const timers = [];
+  const later = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); return id; };
+
+  async function holdWake() { try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {} }
+  document.addEventListener("visibilitychange", () => { if (session && document.visibilityState === "visible") holdWake(); });
+
+  function scheduleDrift() {
+    clearTimeout(driftTimer);
+    if (!session || session.closing || !settings.drift) return;
+    driftTimer = setTimeout(() => {
+      if (!session || session.closing) return;
+      const i = weightedBowl();
+      strikeRin(i, .35 + Math.random() * .3, .15 + Math.random() * .4);
+      if (Math.random() < .12) later(() => strikeRin((i + 2) % 5, .3, .2), 1400 + Math.random() * 1600);
+      scheduleDrift();
+    }, 9000 + Math.random() * 14000);
+  }
+  let lastBowl = 0;
+  function weightedBowl() { // drift wanders to neighbouring bowls, lower bowls a little more often
+    const w = [1.3, 1.15, 1, .9, .8].map((x, i) => x * (i === lastBowl ? .3 : 1) * (Math.abs(i - lastBowl) === 1 ? 1.4 : 1));
+    let r = Math.random() * w.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < 5; i++) { r -= w[i]; if (r <= 0) return (lastBowl = i); }
+    return (lastBowl = 0);
+  }
+
+  function restoreAmb() { if (ctx && bus.amb) { bus.amb.gain.cancelScheduledValues(ctx.currentTime); bus.amb.gain.setTargetAtTime(1, ctx.currentTime, .5); } }
+
+  function begin() {
+    initAudio(); restoreAmb(); holdWake();
+    const total = settings.minutes * 60;
+    session = { start: performance.now(), total, closing: false };
+    startBtn.textContent = "End gently"; startBtn.classList.add("end"); phaseEl.textContent = "Arriving"; paintDur();
+    strikeBell(.85);
+    later(() => strikeRin(0, .7, .5), 5500); later(() => strikeRin(2, .6, .5), 9500); later(() => strikeRin(4, .55, .5), 13500);
+    later(() => { if (session && !session.closing) { phaseEl.textContent = "Resting"; scheduleDrift(); } }, 16000);
+    later(closeSession, total * 1000);
+    tick = requestAnimationFrame(update);
+  }
+  function closeSession() {
+    if (!session || session.closing) return;
+    session.closing = true; clearTimeout(driftTimer); phaseEl.textContent = "Returning"; startBtn.textContent = "Stop now";
+    session.total = (performance.now() - session.start) / 1000;
+    [0, 4500, 9000].forEach((ms, j) => later(() => strikeRin(0, .75 - j * .12, .4), ms));
+    later(() => strikeBell(.8), 14000);
+    later(() => { if (ctx) bus.amb.gain.setTargetAtTime(0, ctx.currentTime, 8); }, 16000);
+    later(finish, 30000);
+  }
+  function finish() {
+    timers.splice(0).forEach(clearTimeout); clearTimeout(driftTimer); cancelAnimationFrame(tick);
+    const done = session && session.closing; session = null;
+    try { wakeLock?.release(); } catch {} wakeLock = null;
+    startBtn.textContent = "Begin"; startBtn.classList.remove("end"); paintDur();
+    phaseEl.textContent = done ? "Complete" : "Ready"; renderIdle();
+  }
+  function update() {
+    if (!session) return;
+    const el = (performance.now() - session.start) / 1000;
+    const remain = session.closing ? 0 : session.total - el;
+    timeEl.textContent = fmt(remain);
+    prog.setAttribute("stroke-dashoffset", String(1 - Math.min(1, el / session.total)));
+    tick = requestAnimationFrame(update);
+  }
+  startBtn.addEventListener("click", () => {
+    if (!session) begin();
+    else if (!session.closing) closeSession();
+    else { if (ctx) restoreAmb(); finish(); }
+  });
+
+  paintDur(); renderIdle();
+  if ("serviceWorker" in navigator && location.protocol === "https:" && window.top === window.self) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body><!--pwa-->
+</html><!--pwa-->

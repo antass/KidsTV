@@ -1,0 +1,16 @@
+{
+  "name": "Ma Sound Bath",
+  "short_name": "Ma",
+  "description": "Japanese rin bowls, temple bell and wind chimes for a quiet sound bath.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#E7E5DC",
+  "theme_color": "#E7E5DC",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

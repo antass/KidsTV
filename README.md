@@ -94,3 +94,23 @@ KidsTV/
 
 The live catalog URL is `CatalogStore.remoteURL`. Change it if the repo moves
 or goes private (raw GitHub links only work for public repos).
+
+---
+
+# Ma (SoundBath/)
+
+A sound bath web app for iPad, in [`SoundBath/`](SoundBath). Five Japanese
+rin bowls tuned to a D yō pentatonic scale, a temple bell (bonshō), a wind
+chime (fūrin), and rain, wave and chime ambience. All sound is synthesized
+live with Web Audio. There are no audio files.
+
+- **Tap** a bowl to strike it. Striking near the rim gives a brighter tone.
+  **Hold** to make it sing.
+- **Session**: pick 5–45 min and tap Begin. The bell and three bowls open the
+  session, then the bowls drift on their own if you leave that on. At the end,
+  three strikes of Earth and the bell close it, and the ambience fades out.
+- Keys 1–7 play the instruments when a keyboard is attached.
+
+**Install on iPad:** host the folder on any HTTPS server (GitHub Pages works),
+open it in Safari, then Share → Add to Home Screen. It runs full-screen and
+works offline after the first load.
