@@ -127,8 +127,9 @@ nav{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;flex:none}
 
     <section class="panel" id="p-shapes" hidden>
       <div class="chips">
+        <button class="chip" id="sWater" aria-pressed="false">Water</button>
+        <button class="chip" id="sTilt" aria-pressed="false">Tilt</button>
         <button class="chip" id="sRain">Shape rain</button>
-        <button class="chip" id="sFloat" aria-pressed="false">Float</button>
         <button class="chip" id="sShake">Shake</button>
         <button class="chip" id="sClear">Clear</button>
       </div>
@@ -411,10 +412,17 @@ const Sounds = (() => {
 const Shapes = (() => {
   const c = makeCanvas('shapeCv');
   const kinds = ['circle','square','tri','star','hex','heart'];
-  let items = [], grav = true, grab = null, lastBounce = 0;
+  let items = [], water = false, grab = null, lastBounce = 0, bubbles = [], bubbleClock = 0;
+  // tilt: gravity direction on screen (x right, y down). Straight down until the phone tells us otherwise.
+  const tilt = {x:0, y:1};
+  let tiltOn = false, gotOri = false;
+  const stirs = new Map();
+  const HINT_AIR = 'Tap to make a shape. Grab one and throw it! Try Water and Tilt.';
+  const HINT_WATER = 'Tilt the phone and the shapes swim to the low side. Swipe the water to make waves!';
+
   function add(x,y,vx=rand(-80,80),vy=rand(-80,0)){
     if (items.length >= 60) items.shift();
-    items.push({x,y,vx,vy,r:rand(18,38),a:rand(0,6.28),va:rand(-3,3),kind:pick(kinds),col:pick(CANDY),sq:0});
+    items.push({x,y,vx,vy,r:rand(18,38),a:rand(0,6.28),va:rand(-3,3),kind:pick(kinds),col:pick(CANDY),sq:0,ph:rand(0,6.28)});
   }
   c.onresize = () => {
     if (!items.length) for (let i=0;i<14;i++) add(rand(40,c.w-40), rand(40,c.h*.6));
@@ -422,9 +430,50 @@ const Shapes = (() => {
   };
   function bounce(it, sp){
     it.sq = Math.min(.35, sp/2600);
-    const now = performance.now();
-    if (sp > 260 && now - lastBounce > 45){ lastBounce = now; tone({f:420 - it.r*5, to:200 - it.r*2, dur:.09, vol:Math.min(.22, sp/4000)}); }
+    const now = performance.now(), min = water ? 140 : 260;
+    if (sp > min && now - lastBounce > 45){
+      lastBounce = now;
+      if (water) tone({f:220 - it.r*2, to:120, dur:.12, vol:Math.min(.16, sp/2000)});
+      else tone({f:420 - it.r*5, to:200 - it.r*2, dur:.09, vol:Math.min(.22, sp/4000)});
+    }
   }
+
+  /* --- tilt sensor --- */
+  function onOri(e){
+    if (e.beta == null || e.gamma == null) return;
+    gotOri = true;
+    const b = e.beta*Math.PI/180, g = e.gamma*Math.PI/180;
+    const x = Math.cos(b)*Math.sin(g), y = Math.sin(b);
+    const ang = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI/180;
+    const sx = x*Math.cos(-ang) - y*Math.sin(-ang), sy = x*Math.sin(-ang) + y*Math.cos(-ang);
+    tilt.x += (sx - tilt.x)*.25; tilt.y += (sy - tilt.y)*.25;
+  }
+  const tiltBtn = $('#sTilt');
+  function tiltOff(msg){
+    tiltOn = false; tilt.x = 0; tilt.y = 1;
+    window.removeEventListener('deviceorientation', onOri);
+    tiltBtn.setAttribute('aria-pressed', 'false');
+    if (msg) setHint(msg);
+  }
+  const BLOCKED = 'This page can’t feel the tilt here. Swipe the water to push the shapes instead!';
+  async function tiltStart(){
+    const DOE = window.DeviceOrientationEvent;
+    if (!DOE) return tiltOff(BLOCKED);
+    try {
+      if (typeof DOE.requestPermission === 'function'){
+        const r = await DOE.requestPermission();
+        if (r !== 'granted') return tiltOff('Tilt is turned off for this page. Swipe the water to push the shapes instead!');
+      }
+    } catch(e){ return tiltOff(BLOCKED); }
+    gotOri = false; tiltOn = true;
+    tiltBtn.setAttribute('aria-pressed', 'true');
+    window.addEventListener('deviceorientation', onOri);
+    setHint(water ? HINT_WATER : 'Tilt the phone. The shapes slide to the lowest corner!');
+    setTimeout(() => { if (tiltOn && !gotOri) tiltOff(BLOCKED); }, 1500);
+  }
+  tiltBtn.addEventListener('click', () => { tiltOn ? (tiltOff(), setHint(water ? HINT_WATER : HINT_AIR)) : tiltStart(); SFX.tweet(); });
+
+  /* --- touch: grab a shape, tap empty space for a new one, swipe empty space to push --- */
   c.cv.addEventListener('pointerdown', e => {
     const p = c.pt(e);
     c.cv.setPointerCapture(e.pointerId);
@@ -435,38 +484,64 @@ const Shapes = (() => {
         it.vx = it.vy = 0; tone({f:700, to:900, dur:.06, vol:.12}); return;
       }
     }
-    add(p.x, p.y); const it = items[items.length-1];
-    tone({f:900 - it.r*12, to:(900 - it.r*12)*1.6, dur:.12, vol:.22});
+    stirs.set(e.pointerId, {x0:p.x, y0:p.y, x:p.x, y:p.y, t:performance.now(), moved:false});
   });
   c.cv.addEventListener('pointermove', e => {
-    if (!grab || e.pointerId !== grab.id) return;
-    const p = c.pt(e), it = grab.it, now = performance.now();
-    it.x = clamp(p.x + grab.dx, it.r, c.w - it.r); it.y = clamp(p.y + grab.dy, it.r, c.h - it.r);
-    grab.hist.push({x:it.x, y:it.y, t:now}); while (grab.hist.length > 2 && now - grab.hist[0].t > 90) grab.hist.shift();
+    if (grab && e.pointerId === grab.id){
+      const p = c.pt(e), it = grab.it, now = performance.now();
+      it.x = clamp(p.x + grab.dx, it.r, c.w - it.r); it.y = clamp(p.y + grab.dy, it.r, c.h - it.r);
+      grab.hist.push({x:it.x, y:it.y, t:now}); while (grab.hist.length > 2 && now - grab.hist[0].t > 90) grab.hist.shift();
+      return;
+    }
+    const s = stirs.get(e.pointerId); if (!s) return;
+    const p = c.pt(e), now = performance.now(), dt = Math.max(8, now - s.t)/1000;
+    if (Math.hypot(p.x - s.x0, p.y - s.y0) > 12) s.moved = true;
+    const fvx = (p.x - s.x)/dt, fvy = (p.y - s.y)/dt, reach = water ? 130 : 80, k = water ? .05 : .03;
+    for (const it of items){
+      const d = Math.hypot(it.x - p.x, it.y - p.y);
+      if (d < reach + it.r){ const f = 1 - d/(reach + it.r); it.vx += fvx*k*f; it.vy += fvy*k*f; it.va += (fvx - fvy)*.0006*f; }
+    }
+    if (water && Math.random() < .5) bubbles.push({x:p.x + rand(-10,10), y:p.y + rand(-10,10), r:rand(2,6), life:1});
+    s.x = p.x; s.y = p.y; s.t = now;
   });
   const end = e => {
-    if (!grab || e.pointerId !== grab.id) return;
-    const h = grab.hist, a = h[0], b = h[h.length-1], dt = (b.t - a.t)/1000;
-    if (dt > 0 && performance.now() - b.t < 100){ grab.it.vx = clamp((b.x-a.x)/dt,-2600,2600); grab.it.vy = clamp((b.y-a.y)/dt,-2600,2600); grab.it.va = grab.it.vx/grab.it.r*.5; }
-    grab = null;
+    if (grab && e.pointerId === grab.id){
+      const h = grab.hist, a = h[0], b = h[h.length-1], dt = (b.t - a.t)/1000;
+      if (dt > 0 && performance.now() - b.t < 100){ grab.it.vx = clamp((b.x-a.x)/dt,-2600,2600); grab.it.vy = clamp((b.y-a.y)/dt,-2600,2600); grab.it.va = grab.it.vx/grab.it.r*.5; }
+      grab = null; return;
+    }
+    const s = stirs.get(e.pointerId); stirs.delete(e.pointerId);
+    if (s && !s.moved && e.type === 'pointerup'){
+      add(s.x0, s.y0); const it = items[items.length-1];
+      tone({f:900 - it.r*12, to:(900 - it.r*12)*1.6, dur:.12, vol:.22});
+    }
   };
   c.cv.addEventListener('pointerup', end); c.cv.addEventListener('pointercancel', end);
 
-  $('#sRain').addEventListener('click', () => { for (let i=0;i<16;i++) setTimeout(() => add(rand(30,c.w-30), -30, rand(-40,40), rand(0,200)), i*90); SFX.tweet(); });
-  $('#sFloat').addEventListener('click', e => { grav = !grav; e.currentTarget.setAttribute('aria-pressed', !grav); if (!grav) items.forEach(it => { it.vy -= rand(100,300); it.vx += rand(-120,120); }); SFX.boing(); });
-  $('#sShake').addEventListener('click', () => { items.forEach(it => { it.vx += rand(-900,900); it.vy -= rand(300,1100); it.va += rand(-8,8); }); SFX.boom(); });
+  const waterBtn = $('#sWater');
+  waterBtn.addEventListener('click', () => {
+    water = !water; waterBtn.setAttribute('aria-pressed', water);
+    if (water){ items.forEach(it => { it.vx *= .3; it.vy *= .3; }); for (let i=0;i<25;i++) bubbles.push({x:rand(0,c.w), y:rand(c.h*.5,c.h), r:rand(2,7), life:1}); SFX.whoosh(); }
+    else SFX.boing();
+    setHint(water ? HINT_WATER : HINT_AIR);
+  });
+  $('#sRain').addEventListener('click', () => { for (let i=0;i<16;i++) setTimeout(() => add(rand(30,c.w-30), 30, rand(-40,40), rand(0,200)), i*90); SFX.tweet(); });
+  $('#sShake').addEventListener('click', () => { const m = water ? .45 : 1; items.forEach(it => { it.vx += rand(-900,900)*m; it.vy += rand(-1100,300)*m; it.va += rand(-8,8); }); SFX.boom(); });
   $('#sClear').addEventListener('click', () => { items = []; SFX.whoosh(); });
 
   function walls(it){
-    const W = c.w, H = c.h;
-    if (it.x < it.r){ it.x = it.r; if (it.vx < 0){ bounce(it,-it.vx); it.vx *= -.6; } }
-    if (it.x > W - it.r){ it.x = W - it.r; if (it.vx > 0){ bounce(it,it.vx); it.vx *= -.6; } }
-    if (it.y < it.r){ it.y = it.r; if (it.vy < 0){ bounce(it,-it.vy); it.vy *= -.6; } }
-    if (it.y > H - it.r){
-      it.y = H - it.r;
-      if (it.vy > 0){ bounce(it,it.vy); it.vy *= -.5; if (Math.abs(it.vy) < 50) it.vy = 0; }
-      it.vx *= .992; it.va += (it.vx/it.r - it.va)*.25;
-    }
+    const W = c.w, H = c.h, gx = tilt.x, gy = tilt.y;
+    const rest = water ? .35 : .55, stop = water ? 25 : 50;
+    const side = (pos, lo, hi, vk, tk, gk) => {
+      if (it[pos] < lo || it[pos] > hi){
+        const low = it[pos] < lo, sign = low ? -1 : 1;
+        it[pos] = low ? lo : hi;
+        if (it[vk]*sign > 0){ bounce(it, Math.abs(it[vk])); it[vk] *= -rest; if (Math.abs(it[vk]) < stop) it[vk] = 0; }
+        if (gk*sign > .15){ it[tk] *= .992; it.va += ((pos === 'y' ? it.vx : -it.vy)*sign/it.r - it.va)*.25; }
+      }
+    };
+    side('x', it.r, W - it.r, 'vx', 'vy', gx);
+    side('y', it.r, H - it.r, 'vy', 'vx', gy);
   }
   function collide(){
     for (let i=0;i<items.length;i++) for (let j=i+1;j<items.length;j++){
@@ -479,7 +554,7 @@ const Shapes = (() => {
       a.x -= nx*s*ia; a.y -= ny*s*ia; b.x += nx*s*ib; b.y += ny*s*ib;
       const rv = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
       if (rv < 0){
-        const jn = -(1.55)*rv/(ia+ib);
+        const jn = -(water ? 1.3 : 1.55)*rv/(ia+ib);
         a.vx -= jn*nx*ia; a.vy -= jn*ny*ia; b.vx += jn*nx*ib; b.vy += jn*ny*ib;
         if (-rv > 400) bounce(-rv > 700 ? a : b, -rv*.6);
       }
@@ -495,18 +570,40 @@ const Shapes = (() => {
     else { ctx.moveTo(0,r*.9); ctx.bezierCurveTo(-r*1.45,r*.05,-r*.85,-r*1.15,0,-r*.42); ctx.bezierCurveTo(r*.85,-r*1.15,r*1.45,r*.05,0,r*.9); }
     ctx.closePath();
   }
-  function step(dt){
-    const g = grav ? 1500 : 0, sub = 3, h = dt/sub;
+  function step(dt, t){
+    const G = water ? 420 : 1500, sub = 3, h = dt/sub;
+    const drag = water ? Math.exp(-1.7*h) : 1, spinDrag = water ? Math.exp(-1.4*h) : 1;
     for (let s=0;s<sub;s++){
       for (const it of items){
         if (grab && grab.it === it) continue;
-        it.vy += g*h;
-        if (!grav){ it.vx *= 1 - .5*h; it.vy *= 1 - .5*h; it.va *= 1 - .3*h; }
+        it.vx += G*tilt.x*h; it.vy += G*tilt.y*h;
+        if (water){
+          it.vx = it.vx*drag + Math.sin(t*1.3 + it.ph)*14*h;
+          it.vy = it.vy*drag + Math.cos(t*1.1 + it.ph)*10*h;
+          it.va *= spinDrag;
+        }
         it.x += it.vx*h; it.y += it.vy*h; it.a += it.va*h; walls(it);
       }
       collide();
     }
     const ctx = c.ctx; ctx.clearRect(0,0,c.w,c.h);
+    if (water){
+      // blue water, a little brighter on the deep side so the "down" direction shows
+      const mag = Math.hypot(tilt.x, tilt.y) || 1, ux = tilt.x/mag, uy = tilt.y/mag, cx = c.w/2, cy = c.h/2, L = Math.hypot(c.w, c.h)/2;
+      const g = ctx.createLinearGradient(cx - ux*L, cy - uy*L, cx + ux*L, cy + uy*L);
+      g.addColorStop(0, 'rgba(76,195,255,.06)'); g.addColorStop(1, 'rgba(76,195,255,.28)');
+      ctx.fillStyle = g; ctx.fillRect(0,0,c.w,c.h);
+      bubbleClock += dt;
+      while (bubbleClock > .12){ bubbleClock -= .12; bubbles.push({x:cx + ux*L*.8 + rand(-c.w/2,c.w/2), y:cy + uy*L*.8 + rand(-c.h/4,c.h/4), r:rand(2,6), life:1}); }
+      ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(246,243,255,.45)';
+      for (const b of bubbles){
+        b.x += (-tilt.x*70 + Math.sin(t*3 + b.r*7)*12)*dt; b.y += (-tilt.y*70)*dt; b.life -= dt*.35;
+        if (b.life <= 0 || b.x < -10 || b.x > c.w + 10 || b.y < -10 || b.y > c.h + 10){ b.life = 0; continue; }
+        ctx.globalAlpha = Math.min(1, b.life*1.5); ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      bubbles = bubbles.filter(b => b.life > 0); if (bubbles.length > 160) bubbles.splice(0, bubbles.length - 160);
+    }
     for (const it of items){
       it.sq *= Math.exp(-dt*12);
       ctx.save(); ctx.translate(it.x,it.y); ctx.scale(1 + it.sq*.6, 1 - it.sq); ctx.rotate(it.a);
@@ -517,7 +614,7 @@ const Shapes = (() => {
       ctx.restore();
     }
   }
-  return {step, hint:'Tap to make a shape. Grab one and throw it!'};
+  return {step, get hint(){ return water ? HINT_WATER : HINT_AIR; }};
 })();
 
 /* ---------- ILLUSIONS ---------- */
