@@ -102,7 +102,16 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; mi
 .rin.ringing .bowl { transform: scale(.985); }
 .rin.ringing .bowl::after { opacity: 1; border-color: var(--accent); transition-duration: .08s; }
 .rin.ringing .kanji { color: var(--accent); opacity: 1; transition-duration: .08s; }
-.rin.singing .bowl::after { border-color: var(--accent); opacity: 1; }
+.rin .bowl { --e: 0; }
+.rin .bowl::before {          /* resonance glow while the rim is played */
+  content: ""; position: absolute; inset: -2px; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 calc(var(--e) * 34px) calc(var(--e) * 3px) color-mix(in srgb, var(--accent) 55%, transparent);
+  opacity: min(1, calc(var(--e) * 1.6));
+}
+.rin.rubbing .bowl::after { border-color: var(--accent); opacity: calc(.55 + var(--e) * .45); transition-duration: .2s; }
+.rin.rubbing .kanji { color: var(--accent); opacity: calc(.82 + var(--e) * .18); transition-duration: .4s; }
+#bonsho svg { transform-origin: 50% 4%; transition: transform .5s cubic-bezier(.3, 1.6, .5, 1); }
+#bonsho.pulling svg { transition: none; }
 
 .temple { display: flex; justify-content: center; gap: clamp(28px, 6vw, 80px); align-items: flex-end; }
 .instr {
@@ -212,7 +221,7 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
         </button>
       </div>
 
-      <p class="hint" id="hint">Tap a bowl to strike it. Hold to make it sing. Strike near the rim for a brighter tone.</p>
+      <p class="hint" id="hint">Tap a bowl's centre to strike it. Circle its rim to make it sing. Slow and steady builds the tone. Pull the bell and let go. Brush through the chime.</p>
     </div>
 
     <aside>
@@ -421,24 +430,46 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
     if (!quiet) { flash(furinEl, 900); ripple(furinEl.querySelector("svg"), .5); }
   }
 
-  // Singing: rubbing the rim builds a sustained, slowly pulsing fundamental.
-  const singing = new Map();
-  function startSing(i) {
-    if (!ctx || singing.has(i)) return;
+  // Rim rubbing: a persistent voice per bowl whose loudness follows a slow "energy"
+  // that builds as the finger circles the rim, plus friction noise that follows the finger instantly.
+  const rubs = RIN.map(() => ({ energy: 0, fric: 0, drive: 0, ang: 0, dir: 1, speed: 0, lastT: 0, pointer: null, voice: null, lastFrame: 0, swell: 0 }));
+  function rubVoice(i) {
+    const st = rubs[i]; if (st.voice) return st.voice;
     const r = RIN[i], t = ctx.currentTime, out = pan((i - 2) * .22); out.connect(bus.voice);
-    const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(.075, t, 1.1); g.connect(out);
-    const oscs = [[1, -.35, 1], [1, .35, 1], [2.756, .8, .18]].map(([m, d, a]) => {
-      const o = ctx.createOscillator(), og = ctx.createGain(); og.gain.value = a;
-      o.frequency.value = r.f * m + d; o.connect(og).connect(g); o.start(t); return o;
-    });
-    const lfo = ctx.createOscillator(), depth = ctx.createGain(); lfo.frequency.value = .45; depth.gain.value = .025;
-    lfo.connect(depth).connect(g.gain); lfo.start(t); oscs.push(lfo);
-    singing.set(i, { g, oscs }); rinEls[i].classList.add("singing");
+    const tone = ctx.createGain(), over = ctx.createGain(), fg = ctx.createGain();
+    [tone, over, fg].forEach(g => { g.gain.value = 0; g.connect(out); });
+    const osc = (f, g, a) => { const o = ctx.createOscillator(), og = ctx.createGain(); o.frequency.value = f; og.gain.value = a; o.connect(og).connect(g); o.start(t); return o; };
+    const oscs = [osc(r.f - .4, tone, 1), osc(r.f + .4, tone, 1), osc(r.f * 5.404, tone, .04),
+                  osc(r.f * 2.756 - .9, over, 1), osc(r.f * 2.756 + .9, over, 1)];
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = r.f * 5; bp.Q.value = 3;
+    src.connect(bp).connect(fg); src.start(t, Math.random() * 5);
+    return (st.voice = { tone, over, fg, bp, oscs, src, out });
   }
-  function stopSing(i) {
-    const s = singing.get(i); if (!s) return;
-    const t = ctx.currentTime; s.g.gain.cancelScheduledValues(t); s.g.gain.setValueAtTime(s.g.gain.value, t); s.g.gain.setTargetAtTime(0, t, 1.6);
-    s.oscs.forEach(o => o.stop(t + 10)); singing.delete(i); rinEls[i].classList.remove("singing");
+  function dropRubVoice(i) {
+    const v = rubs[i].voice; if (!v) return; rubs[i].voice = null;
+    const t = ctx.currentTime + .05; v.oscs.forEach(o => o.stop(t)); v.src.stop(t);
+    setTimeout(() => v.out.disconnect(), 300);
+  }
+  // One physics step per animation frame.
+  function rubStep(i, now) {
+    const st = rubs[i], dt = Math.min(.05, st.lastFrame ? (now - st.lastFrame) / 1000 : .016); st.lastFrame = now;
+    if (now - st.lastT > 70) st.speed *= Math.pow(.001, dt);            // finger stopped: friction stops fast
+    // drive: revolutions per second around the rim; ~0.7 rev/s is a comfortable singing pace
+    st.drive = st.pointer != null ? st.speed / (Math.PI * 2) / .7 : 0;
+    const target = Math.min(1, st.drive);
+    const tau = target > st.energy ? 1.3 : (st.pointer != null ? 1.8 : 3.4);  // slow build, slower ring-out
+    st.energy += (target - st.energy) * (1 - Math.exp(-dt / tau));
+    st.fric += (Math.min(1.6, st.drive) - st.fric) * (1 - Math.exp(-dt / .04));
+    const overAmt = Math.max(0, Math.min(1, (st.drive - 1.35) / .8));     // too fast: tone jumps to the overtone
+    st.swell += (overAmt - st.swell) * (1 - Math.exp(-dt / .5));
+    if (!ctx) return;
+    if (st.energy < .004 && st.pointer == null && st.fric < .01) { st.energy = 0; dropRubVoice(i); return; }
+    const v = rubVoice(i), t = ctx.currentTime, e = st.energy;
+    v.tone.gain.setTargetAtTime(.11 * Math.pow(e, 1.4) * (1 - .55 * st.swell), t, .04);
+    v.over.gain.setTargetAtTime(.05 * e * st.swell, t, .06);
+    v.fg.gain.setTargetAtTime(.045 * st.fric * (st.pointer != null ? 1 : 0), t, .02);
+    v.bp.frequency.setTargetAtTime(RIN[i].f * 5 + st.fric * 900, t, .05);
   }
 
   // Chimes ambience: a breeze moves the fūrin every few seconds.
@@ -466,25 +497,69 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 
   function flash(el, ms = 1400) { el.classList.add("ringing"); clearTimeout(el._ft); el._ft = setTimeout(() => el.classList.remove("ringing"), ms); }
 
-  // Touch: tap strikes, hold sings. Distance from centre sets brightness.
+  // Touch: the centre is for striking, the rim is for rubbing. A quick tap on the rim also strikes, brightly.
+  const geo = el => { const r = el.querySelector(".bowl").getBoundingClientRect(); return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, R: r.width / 2 }; };
   rinEls.forEach((el, i) => {
-    const holds = new Map();
+    const st = rubs[i];
     el.addEventListener("pointerdown", e => {
-      e.preventDefault(); el.setPointerCapture?.(e.pointerId);
-      const rect = el.querySelector(".bowl").getBoundingClientRect();
-      const dx = e.clientX - (rect.left + rect.width / 2), dy = e.clientY - (rect.top + rect.height / 2);
-      const dist = Math.min(1, Math.hypot(dx, dy) / (rect.width / 2));
-      strikeRin(i, .55 + dist * .4, dist);
-      holds.set(e.pointerId, setTimeout(() => startSing(i), 420));
+      e.preventDefault(); el.setPointerCapture?.(e.pointerId); initAudio();
+      if (st.pointer != null) return;                                       // one finger per bowl
+      const g = geo(el), dx = e.clientX - g.cx, dy = e.clientY - g.cy, dist = Math.min(1, Math.hypot(dx, dy) / g.R);
+      Object.assign(st, { pointer: e.pointerId, ang: Math.atan2(dy, dx), lastT: performance.now(), downT: performance.now(), travel: 0, rr: dist, zone: dist < .6 ? "centre" : "rim" });
+      if (st.zone === "centre") strikeRin(i, .7 + dist * .3, .25 + dist * .5);
+      el.classList.add("rubbing"); kick();
     });
-    const up = e => { clearTimeout(holds.get(e.pointerId)); holds.delete(e.pointerId); stopSing(i); };
+    el.addEventListener("pointermove", e => {
+      if (st.pointer !== e.pointerId) return;
+      const g = geo(el), dx = e.clientX - g.cx, dy = e.clientY - g.cy, rr = Math.hypot(dx, dy) / g.R, now = performance.now();
+      const a = Math.atan2(dy, dx); let da = a - st.ang;
+      if (da > Math.PI) da -= Math.PI * 2; if (da < -Math.PI) da += Math.PI * 2;
+      const dt = Math.max(.008, (now - st.lastT) / 1000);
+      st.ang = a; st.lastT = now; st.rr = rr;
+      if (rr < .2) return;                                                  // too close to the centre to read a direction
+      const w = Math.abs(da) / dt * Math.min(1, rr / .6);                   // circling near the rim counts fully
+      st.speed = st.speed * .75 + Math.min(w, 40) * .25; st.travel += Math.abs(da);
+      if (Math.abs(da) > .001) st.dir = Math.sign(da);
+    });
+    const up = e => {
+      if (st.pointer !== e.pointerId) return;
+      if (st.zone === "rim" && st.travel < .35 && performance.now() - st.downT < 350) strikeRin(i, .9, 1);
+      st.pointer = null; el.classList.remove("rubbing");
+      if (st.energy > .25) ripple(el.querySelector(".bowl"), st.energy * .6);
+    };
     el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
     el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); strikeRin(i, .8, .6); } });
     el.addEventListener("click", e => e.preventDefault());
   });
-  [[bellEl, () => strikeBell()], [furinEl, () => strikeFurin(.9)]].forEach(([el, fn]) => {
-    el.addEventListener("pointerdown", e => { e.preventDefault(); fn(); });
-    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
+
+  // Bonshō: drag down to pull the striking log back; the further the pull, the harder the strike.
+  let pull = null;
+  bellEl.addEventListener("pointerdown", e => { e.preventDefault(); bellEl.setPointerCapture?.(e.pointerId); initAudio(); pull = { id: e.pointerId, y: e.clientY, x: e.clientX, amt: 0 }; bellEl.classList.add("pulling"); });
+  bellEl.addEventListener("pointermove", e => {
+    if (!pull || pull.id !== e.pointerId) return;
+    pull.amt = Math.max(0, Math.min(1, Math.hypot(e.clientX - pull.x, e.clientY - pull.y) / 110));
+    const side = Math.sign(e.clientX - pull.x || 1);
+    bellEl.querySelector("svg").style.transform = `rotate(${-side * pull.amt * 9}deg)`;
+  });
+  const release = e => {
+    if (!pull || pull.id !== e.pointerId) return;
+    bellEl.classList.remove("pulling"); bellEl.querySelector("svg").style.transform = "";
+    strikeBell(.6 + pull.amt * .4); pull = null;
+  };
+  bellEl.addEventListener("pointerup", release); bellEl.addEventListener("pointercancel", release);
+  bellEl.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); strikeBell(); } });
+
+  // Fūrin: tap it, or brush a finger through it from anywhere on the stage.
+  furinEl.addEventListener("pointerdown", e => { e.preventDefault(); strikeFurin(.9); brush.inside = true; brush.t = performance.now(); });
+  furinEl.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); strikeFurin(.9); } });
+  let brush = { inside: false, t: 0, x: 0, y: 0, mt: 0 };
+  document.addEventListener("pointermove", e => {
+    const r = furinEl.querySelector("svg").getBoundingClientRect(), now = performance.now();
+    const inside = e.clientX > r.left - 10 && e.clientX < r.right + 10 && e.clientY > r.top && e.clientY < r.bottom;
+    const sp = Math.hypot(e.clientX - brush.x, e.clientY - brush.y) / Math.max(8, now - brush.mt);
+    brush.x = e.clientX; brush.y = e.clientY; brush.mt = now;
+    if (inside && !brush.inside && e.buttons && now - brush.t > 110) { brush.t = now; strikeFurin(Math.min(1, .35 + sp * .5)); }
+    brush.inside = inside;
   });
   document.addEventListener("keydown", e => {
     if (e.target.closest("input, button") && (e.key === " " || e.key === "Enter")) return;
@@ -516,21 +591,56 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
     const base = Math.min(r.width, r.height) / 2;
     const count = reduced.matches ? 1 : 3;
     for (let j = 0; j < count; j++) rings.push({ x, y, base, t0: performance.now() + j * 380, dur: 4200 + vel * 1800, vel });
-    if (!raf) raf = requestAnimationFrame(draw);
+    kick();
   }
+  function kick() { if (!raf) raf = requestAnimationFrame(draw); }
   function draw(now) {
     const ink = getComputedStyle(root).getPropertyValue("--accent").trim() || "#2F4B66";
+    const sr = stage.getBoundingClientRect();
     g2.setTransform(dpr, 0, 0, dpr, 0, 0); g2.clearRect(0, 0, cv.width, cv.height);
+    g2.strokeStyle = ink; g2.fillStyle = ink;
     rings = rings.filter(r => now - r.t0 < r.dur);
     for (const r of rings) {
       const p = (now - r.t0) / r.dur; if (p < 0) continue;
       const e = 1 - Math.pow(1 - p, 2.4);
       const rad = r.base + (reduced.matches ? 6 : e * r.base * (1.6 + r.vel));
       g2.beginPath(); g2.arc(r.x, r.y, rad, 0, Math.PI * 2);
-      g2.strokeStyle = ink; g2.globalAlpha = (1 - p) * .34 * Math.min(1, r.vel + .3); g2.lineWidth = 1 + (1 - p) * 2.2; g2.stroke();
+      g2.globalAlpha = (1 - p) * .34 * Math.min(1, r.vel + .3); g2.lineWidth = 1 + (1 - p) * 2.2; g2.stroke();
     }
+    let live = rings.length > 0;
+    rubs.forEach((st, i) => {
+      rubStep(i, now);
+      const bowl = rinEls[i].querySelector(".bowl");
+      bowl.style.setProperty("--e", st.energy.toFixed(3));
+      if (st.pointer == null && st.energy < .004) { st.lastFrame = 0; return; }
+      live = true;
+      const g = geo(rinEls[i]), cx = g.cx - sr.left, cy = g.cy - sr.top, R = g.R, e = st.energy;
+      // The bowl's (2,0) mode: four antinodes that follow the mallet around the rim.
+      if (e > .01) {
+        const wob = reduced.matches ? 0 : Math.sin(now / 1000 * Math.PI * 2 * (1.1 + i * .15));
+        for (const [k, a] of [[1.06, .5], [1.16, .22]]) {
+          g2.beginPath();
+          for (let s2 = 0; s2 <= 96; s2++) {
+            const th = s2 / 96 * Math.PI * 2;
+            const rad = R * k + R * .045 * e * k * wob * Math.cos(2 * (th - st.ang));
+            const x = cx + rad * Math.cos(th), y = cy + rad * Math.sin(th);
+            s2 ? g2.lineTo(x, y) : g2.moveTo(x, y);
+          }
+          g2.globalAlpha = a * Math.min(1, e * 1.4); g2.lineWidth = 1.2 + e * 1.4; g2.stroke();
+        }
+      }
+      // Mallet contact: a point on the rim with a short trail behind it.
+      if (st.pointer != null && st.rr > .55) {
+        const tail = Math.min(1.4, .15 + st.fric * .9);
+        g2.beginPath(); g2.arc(cx, cy, R * .97, st.ang - (st.dir > 0 ? tail : 0), st.ang + (st.dir > 0 ? 0 : tail));
+        g2.globalAlpha = .25 + st.fric * .35; g2.lineWidth = 3 + st.fric * 2; g2.lineCap = "round"; g2.stroke();
+        g2.beginPath(); g2.arc(cx + R * .97 * Math.cos(st.ang), cy + R * .97 * Math.sin(st.ang), 5 + st.fric * 3, 0, Math.PI * 2);
+        g2.globalAlpha = .7; g2.fill();
+      }
+      if (e > .55 && !reduced.matches && Math.random() < e * .02) ripple(bowl, e * .4);
+    });
     g2.globalAlpha = 1;
-    raf = rings.length ? requestAnimationFrame(draw) : 0;
+    raf = live ? requestAnimationFrame(draw) : 0;
   }
 
   /* ---------- Session ---------- */

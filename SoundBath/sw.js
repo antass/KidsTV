@@ -1,5 +1,5 @@
 // Offline cache so Ma works from the home screen without a connection.
-const CACHE = "ma-v1";
+const CACHE = "ma-v2";
 const CORE = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE))); self.skipWaiting(); });
 self.addEventListener("activate", e => {

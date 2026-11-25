@@ -104,8 +104,13 @@ rin bowls tuned to a D yō pentatonic scale, a temple bell (bonshō), a wind
 chime (fūrin), and rain, wave and chime ambience. All sound is synthesized
 live with Web Audio. There are no audio files.
 
-- **Tap** a bowl to strike it. Striking near the rim gives a brighter tone.
-  **Hold** to make it sing.
+- **Tap** the centre of a bowl to strike it. A quick tap on the rim gives a
+  brighter strike.
+- **Circle the rim** with a finger to make the bowl sing, like a wooden mallet.
+  The tone builds slowly at a steady pace (about one turn a second). Going much
+  faster brings out the high overtone. Lift your finger and it rings out.
+- **Pull** the temple bell sideways or down and let go. A longer pull gives a
+  harder strike. **Brush** a finger through the wind chime to ring it.
 - **Session**: pick 5–45 min and tap Begin. The bell and three bowls open the
   session, then the bowls drift on their own if you leave that on. At the end,
   three strikes of Earth and the bell close it, and the ambience fades out.
